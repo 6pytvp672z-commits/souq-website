@@ -276,10 +276,21 @@
       <label>Password<input name="password" type="password" autocomplete="new-password" placeholder="At least 8 characters" minlength="8" required></label>
       <button class="account-submit" type="submit">Create account</button>
     </form>
-    <p class="account-note" id="accountNote" role="status">Account access is a demo and needs an authentication service to work.</p>
+    <section class="account-user" id="accountUser" hidden>
+      <p>Signed in as <strong id="accountEmail"></strong></p>
+      <button class="account-submit" id="signOutButton" type="button">Sign out</button>
+    </section>
+    <p class="account-note" id="accountNote" role="status"></p>
   </dialog>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
+    const SUPABASE_URL = "";
+    const SUPABASE_PUBLISHABLE_KEY = "";
+    const supabaseClient = SUPABASE_URL && SUPABASE_PUBLISHABLE_KEY && window.supabase
+      ? window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY)
+      : null;
+
     const products = [
       { name: "Hand-thrown ceramic vase", category: "Home", price: 28, location: "Oakwood · 0.8 mi", icon: "🏺", art: "amber" },
       { name: "Weekend market tote", category: "Fashion", price: 18, location: "Riverside · 1.2 mi", icon: "👜", art: "sage" },
@@ -303,9 +314,14 @@
     const createAccountTab = document.querySelector("#createAccountTab");
     const signInForm = document.querySelector("#signInForm");
     const createAccountForm = document.querySelector("#createAccountForm");
+    const accountUser = document.querySelector("#accountUser");
+    const accountEmail = document.querySelector("#accountEmail");
+    const accountButton = document.querySelector("#accountButton");
+    const accountTabs = document.querySelector(".account-tabs");
     let activeCategory = "All";
     let cartCount = 0;
     let toastTimer;
+    let signedInUser = null;
 
     function renderProducts() {
       const query = searchInput.value.trim().toLowerCase();
@@ -345,6 +361,7 @@
     }
 
     function setAccountMode(mode) {
+      if (signedInUser) return;
       const creating = mode === "create";
       signInTab.setAttribute("aria-selected", String(!creating));
       createAccountTab.setAttribute("aria-selected", String(creating));
@@ -354,7 +371,79 @@
       accountDescription.textContent = creating
         ? "Create an account to save finds and connect with sellers."
         : "Sign in to save finds and connect with sellers.";
-      accountNote.textContent = "Account access is a demo and needs an authentication service to work.";
+      accountNote.textContent = supabaseClient
+        ? ""
+        : "Account service is not configured yet. Connect Souq to Supabase to enable accounts.";
+    }
+
+    function setAccountUser(user) {
+      signedInUser = user;
+      const signedIn = Boolean(user);
+      accountTabs.hidden = signedIn;
+      signInForm.hidden = signedIn || createAccountTab.getAttribute("aria-selected") === "true";
+      createAccountForm.hidden = signedIn || createAccountTab.getAttribute("aria-selected") !== "true";
+      accountUser.hidden = !signedIn;
+      accountButton.textContent = signedIn ? "My account" : "Sign in";
+      if (signedIn) {
+        accountTitle.textContent = "Your Souq account";
+        accountDescription.textContent = "You are signed in securely.";
+        accountEmail.textContent = user.email || "";
+        accountNote.textContent = "";
+      } else {
+        accountTitle.textContent = createAccountTab.getAttribute("aria-selected") === "true" ? "Join Souq" : "Welcome back";
+        accountDescription.textContent = createAccountTab.getAttribute("aria-selected") === "true"
+          ? "Create an account to save finds and connect with sellers."
+          : "Sign in to save finds and connect with sellers.";
+        accountNote.textContent = supabaseClient
+          ? ""
+          : "Account service is not configured yet. Connect Souq to Supabase to enable accounts.";
+      }
+    }
+
+    async function submitAccountForm(form, mode) {
+      if (!supabaseClient) {
+        accountNote.textContent = "Account service is not configured yet. Connect Souq to Supabase to enable accounts.";
+        return;
+      }
+
+      const submitButton = form.querySelector('button[type="submit"]');
+      submitButton.disabled = true;
+      accountNote.textContent = mode === "sign-in" ? "Signing in..." : "Creating your account...";
+      try {
+        const email = form.elements.email.value.trim();
+        const password = form.elements.password.value;
+        const result = mode === "sign-in"
+          ? await supabaseClient.auth.signInWithPassword({ email, password })
+          : await supabaseClient.auth.signUp({
+              email,
+              password,
+              options: { data: { display_name: form.elements.name.value.trim() } }
+            });
+
+        if (result.error) throw result.error;
+        if (mode === "create" && !result.data.session) {
+          accountNote.textContent = "Account created. Check your email to confirm your address, then sign in.";
+          form.reset();
+          return;
+        }
+        accountNote.textContent = mode === "sign-in" ? "Signed in successfully." : "Your account is ready.";
+        form.reset();
+        accountDialog.close();
+      } catch (error) {
+        accountNote.textContent = error.message || "We couldn't complete that request. Please try again.";
+      } finally {
+        submitButton.disabled = false;
+      }
+    }
+
+    async function signOut() {
+      if (!supabaseClient) return;
+      const { error } = await supabaseClient.auth.signOut();
+      if (error) {
+        accountNote.textContent = error.message || "We couldn't sign you out. Please try again.";
+        return;
+      }
+      accountNote.textContent = "You are signed out.";
     }
 
     document.querySelector("#categories").addEventListener("click", event => {
@@ -379,10 +468,17 @@
       favorite.textContent = saved ? "♥" : "♡";
       showToast(saved ? "Saved to your favorites" : "Removed from your favorites");
     });
-    document.querySelector("#accountButton").addEventListener("click", () => {
+    accountButton.addEventListener("click", () => {
       setAccountMode("sign-in");
       accountDialog.showModal();
-      signInForm.elements.email.focus();
+      if (signedInUser) {
+        accountTabs.hidden = true;
+        signInForm.hidden = true;
+        createAccountForm.hidden = true;
+        accountUser.hidden = false;
+      } else {
+        signInForm.elements.email.focus();
+      }
     });
     document.querySelector("#closeAccount").addEventListener("click", () => accountDialog.close());
     accountDialog.addEventListener("click", event => {
@@ -390,12 +486,32 @@
     });
     signInTab.addEventListener("click", () => setAccountMode("sign-in"));
     createAccountTab.addEventListener("click", () => setAccountMode("create"));
-    [signInForm, createAccountForm].forEach(form => form.addEventListener("submit", event => {
+    signInForm.addEventListener("submit", event => {
       event.preventDefault();
-      accountNote.textContent = "Your form is ready, but account access needs a connected authentication service.";
-    }));
+      submitAccountForm(signInForm, "sign-in");
+    });
+    createAccountForm.addEventListener("submit", event => {
+      event.preventDefault();
+      submitAccountForm(createAccountForm, "create");
+    });
+    document.querySelector("#signOutButton").addEventListener("click", signOut);
     document.querySelector("#cartButton").addEventListener("click", () => showToast(`Your bag has ${cartCount} ${cartCount === 1 ? "item" : "items"}`));
     document.querySelector("#sellButton").addEventListener("click", () => showToast("Seller signup is coming soon!"));
+
+    if (supabaseClient) {
+      supabaseClient.auth.getSession().then(({ data, error }) => {
+        if (error) {
+          accountNote.textContent = error.message || "Couldn't check your sign-in status.";
+          return;
+        }
+        setAccountUser(data.session?.user || null);
+      }).catch(error => {
+        accountNote.textContent = error.message || "Couldn't check your sign-in status.";
+      });
+      supabaseClient.auth.onAuthStateChange((_event, session) => setAccountUser(session?.user || null));
+    } else {
+      setAccountUser(null);
+    }
 
     renderProducts();
   </script>
