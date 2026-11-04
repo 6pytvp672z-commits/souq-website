@@ -417,7 +417,10 @@
           : await supabaseClient.auth.signUp({
               email,
               password,
-              options: { data: { display_name: form.elements.name.value.trim() } }
+              options: {
+                emailRedirectTo: `${window.location.origin}${window.location.pathname}`,
+                data: { display_name: form.elements.name.value.trim() }
+              }
             });
 
         if (result.error) throw result.error;
