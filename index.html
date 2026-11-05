@@ -54,7 +54,8 @@
     .sell-button { color: #14120c; border-color: var(--green); background: var(--green); }
     .sell-button:hover { background: var(--gold-soft); border-color: var(--gold-soft); }
     .account-dialog {
-      width: min(440px, calc(100% - 32px)); padding: 27px; color: var(--ink);
+      width: min(440px, calc(100% - 32px)); max-height: min(88vh, 760px); overflow-y: auto;
+      padding: 27px; color: var(--ink);
       background: var(--white); border: 1px solid #6b5726; border-radius: 22px;
       box-shadow: 0 24px 80px #000a;
     }
@@ -77,6 +78,23 @@
       border: 1px solid var(--line); border-radius: 10px; outline: none;
     }
     .account-form input:focus { border-color: var(--green); box-shadow: 0 0 0 3px #d4af3726; }
+    .account-form input:disabled { opacity: .65; }
+    .account-link {
+      padding: 2px 0; color: var(--gold-soft); background: transparent; border: 0;
+      text-align: left; text-decoration: underline; text-underline-offset: 3px; font-size: 13px;
+    }
+    .account-user { display: grid; gap: 16px; }
+    .account-user[hidden], .account-form[hidden], .account-link[hidden] { display: none; }
+    .account-user > p { margin: 0; color: var(--muted); font-size: 14px; }
+    .account-user strong { color: var(--ink); }
+    .manage-section { display: grid; gap: 12px; padding-top: 16px; border-top: 1px solid var(--line); }
+    .manage-section h3 { margin: 0; font-size: 15px; }
+    .manage-section .account-form { gap: 10px; }
+    .manage-section .account-form label { font-size: 12px; }
+    .manage-section .account-form input { height: 42px; }
+    .manage-section .account-submit, .account-user > .account-submit { height: 42px; }
+    .sign-out-button { color: var(--ink); background: transparent; border: 1px solid var(--line); }
+    .sign-out-button:hover { border-color: var(--green); }
     .account-submit {
       height: 46px; margin-top: 3px; color: #14120c; background: var(--green);
       border: 0; border-radius: 11px; font-weight: 750;
@@ -270,15 +288,49 @@
       <label>Password<input name="password" type="password" autocomplete="current-password" placeholder="Your password" required></label>
       <button class="account-submit" type="submit">Sign in</button>
     </form>
+    <button class="account-link" id="forgotPasswordButton" type="button">Forgot password?</button>
     <form class="account-form" id="createAccountForm" hidden>
       <label>Your name<input name="name" type="text" autocomplete="name" placeholder="Full name" required></label>
+      <label>Username<input name="username" type="text" autocomplete="username" placeholder="3–24 letters, numbers, or underscores" minlength="3" maxlength="24" pattern="[A-Za-z0-9_]{3,24}" required></label>
       <label>Email address<input name="email" type="email" autocomplete="email" placeholder="you@example.com" required></label>
       <label>Password<input name="password" type="password" autocomplete="new-password" placeholder="At least 8 characters" minlength="8" required></label>
       <button class="account-submit" type="submit">Create account</button>
     </form>
+    <form class="account-form" id="resetRequestForm" hidden>
+      <label>Email address<input name="email" type="email" autocomplete="email" placeholder="you@example.com" required></label>
+      <button class="account-submit" type="submit">Send reset link</button>
+      <button class="account-link" type="button" data-account-back>Back to sign in</button>
+    </form>
+    <form class="account-form" id="setPasswordForm" hidden>
+      <label>New password<input name="password" type="password" autocomplete="new-password" placeholder="At least 8 characters" minlength="8" required></label>
+      <label>Confirm new password<input name="confirmPassword" type="password" autocomplete="new-password" placeholder="Enter it again" minlength="8" required></label>
+      <button class="account-submit" type="submit">Set new password</button>
+    </form>
     <section class="account-user" id="accountUser" hidden>
       <p>Signed in as <strong id="accountEmail"></strong></p>
-      <button class="account-submit" id="signOutButton" type="button">Sign out</button>
+      <section class="manage-section" aria-labelledby="usernameHeading">
+        <h3 id="usernameHeading">Username</h3>
+        <form class="account-form" id="usernameForm">
+          <label>Username<input name="username" type="text" autocomplete="username" minlength="3" maxlength="24" pattern="[A-Za-z0-9_]{3,24}" required></label>
+          <button class="account-submit" type="submit">Save username</button>
+        </form>
+      </section>
+      <section class="manage-section" aria-labelledby="emailHeading">
+        <h3 id="emailHeading">Change email</h3>
+        <form class="account-form" id="emailForm">
+          <label>New email address<input name="email" type="email" autocomplete="email" placeholder="new@example.com" required></label>
+          <button class="account-submit" type="submit">Update email</button>
+        </form>
+      </section>
+      <section class="manage-section" aria-labelledby="passwordHeading">
+        <h3 id="passwordHeading">Change password</h3>
+        <form class="account-form" id="changePasswordForm">
+          <label>New password<input name="password" type="password" autocomplete="new-password" placeholder="At least 8 characters" minlength="8" required></label>
+          <label>Confirm new password<input name="confirmPassword" type="password" autocomplete="new-password" placeholder="Enter it again" minlength="8" required></label>
+          <button class="account-submit" type="submit">Update password</button>
+        </form>
+      </section>
+      <button class="account-submit sign-out-button" id="signOutButton" type="button">Sign out</button>
     </section>
     <p class="account-note" id="accountNote" role="status"></p>
   </dialog>
@@ -314,10 +366,17 @@
     const createAccountTab = document.querySelector("#createAccountTab");
     const signInForm = document.querySelector("#signInForm");
     const createAccountForm = document.querySelector("#createAccountForm");
+    const resetRequestForm = document.querySelector("#resetRequestForm");
+    const setPasswordForm = document.querySelector("#setPasswordForm");
+    const usernameForm = document.querySelector("#usernameForm");
+    const emailForm = document.querySelector("#emailForm");
+    const changePasswordForm = document.querySelector("#changePasswordForm");
     const accountUser = document.querySelector("#accountUser");
     const accountEmail = document.querySelector("#accountEmail");
     const accountButton = document.querySelector("#accountButton");
     const accountTabs = document.querySelector(".account-tabs");
+    const forgotPasswordButton = document.querySelector("#forgotPasswordButton");
+    const accountForms = [signInForm, createAccountForm, resetRequestForm, setPasswordForm];
     let activeCategory = "All";
     let cartCount = 0;
     let toastTimer;
@@ -365,8 +424,10 @@
       const creating = mode === "create";
       signInTab.setAttribute("aria-selected", String(!creating));
       createAccountTab.setAttribute("aria-selected", String(creating));
+      accountForms.forEach(form => { form.hidden = true; });
       signInForm.hidden = creating;
       createAccountForm.hidden = !creating;
+      forgotPasswordButton.hidden = creating;
       accountTitle.textContent = creating ? "Join Souq" : "Welcome back";
       accountDescription.textContent = creating
         ? "Create an account to save finds and connect with sellers."
@@ -379,24 +440,67 @@
     function setAccountUser(user) {
       signedInUser = user;
       const signedIn = Boolean(user);
-      accountTabs.hidden = signedIn;
-      signInForm.hidden = signedIn || createAccountTab.getAttribute("aria-selected") === "true";
-      createAccountForm.hidden = signedIn || createAccountTab.getAttribute("aria-selected") !== "true";
+      accountTabs.hidden = signedIn || setPasswordForm.hidden === false;
+      accountForms.forEach(form => { form.hidden = true; });
+      forgotPasswordButton.hidden = true;
+      if (!signedIn && setPasswordForm.hidden && resetRequestForm.hidden) {
+        const creating = createAccountTab.getAttribute("aria-selected") === "true";
+        signInForm.hidden = creating;
+        createAccountForm.hidden = !creating;
+        forgotPasswordButton.hidden = creating;
+      }
       accountUser.hidden = !signedIn;
       accountButton.textContent = signedIn ? "My account" : "Sign in";
       if (signedIn) {
         accountTitle.textContent = "Your Souq account";
         accountDescription.textContent = "You are signed in securely.";
         accountEmail.textContent = user.email || "";
+        usernameForm.elements.username.value = user.user_metadata?.username || "";
+        loadAccountProfile(user);
         accountNote.textContent = "";
       } else {
-        accountTitle.textContent = createAccountTab.getAttribute("aria-selected") === "true" ? "Join Souq" : "Welcome back";
-        accountDescription.textContent = createAccountTab.getAttribute("aria-selected") === "true"
+        const creating = createAccountTab.getAttribute("aria-selected") === "true";
+        accountTitle.textContent = resetRequestForm.hidden ? (creating ? "Join Souq" : "Welcome back") : "Reset your password";
+        accountDescription.textContent = !resetRequestForm.hidden
+          ? "We’ll email you a secure password reset link."
+          : creating
           ? "Create an account to save finds and connect with sellers."
           : "Sign in to save finds and connect with sellers.";
         accountNote.textContent = supabaseClient
           ? ""
           : "Account service is not configured yet. Connect Souq to Supabase to enable accounts.";
+      }
+    }
+
+    async function loadAccountProfile(user) {
+      if (!supabaseClient || !user) return;
+      const { data, error } = await supabaseClient
+        .from("profiles")
+        .select("username")
+        .eq("id", user.id)
+        .maybeSingle();
+      if (error) {
+        accountNote.textContent = `Couldn't load your profile: ${error.message}`;
+        return;
+      }
+      if (data?.username) usernameForm.elements.username.value = data.username;
+    }
+
+    async function runAccountAction(button, progress, action, success) {
+      if (!supabaseClient) {
+        accountNote.textContent = "Account service is not configured.";
+        return;
+      }
+      button.disabled = true;
+      accountNote.textContent = progress;
+      try {
+        const { error } = await action();
+        if (error) throw error;
+        accountNote.textContent = success;
+      } catch (error) {
+        accountNote.textContent = error.message || "We couldn't complete that request. Please try again.";
+      } finally {
+        button.disabled = false;
       }
     }
 
@@ -419,7 +523,10 @@
               password,
               options: {
                 emailRedirectTo: `${window.location.origin}${window.location.pathname}`,
-                data: { display_name: form.elements.name.value.trim() }
+                data: {
+                  display_name: form.elements.name.value.trim(),
+                  username: form.elements.username.value.trim()
+                }
               }
             });
 
@@ -449,6 +556,92 @@
       accountNote.textContent = "You are signed out.";
     }
 
+    forgotPasswordButton.addEventListener("click", () => {
+      signInTab.setAttribute("aria-selected", "true");
+      createAccountTab.setAttribute("aria-selected", "false");
+      accountForms.forEach(form => { form.hidden = true; });
+      resetRequestForm.hidden = false;
+      forgotPasswordButton.hidden = true;
+      accountTitle.textContent = "Reset your password";
+      accountDescription.textContent = "We’ll email you a secure password reset link.";
+      accountNote.textContent = "";
+      resetRequestForm.elements.email.value = signInForm.elements.email.value;
+      resetRequestForm.elements.email.focus();
+    });
+
+    resetRequestForm.addEventListener("submit", event => {
+      event.preventDefault();
+      const button = resetRequestForm.querySelector('button[type="submit"]');
+      runAccountAction(
+        button,
+        "Sending reset link...",
+        () => supabaseClient.auth.resetPasswordForEmail(resetRequestForm.elements.email.value.trim(), {
+          redirectTo: `${window.location.origin}${window.location.pathname}`
+        }),
+        "If an account exists for that email, a password reset link has been sent."
+      );
+    });
+
+    document.querySelectorAll("[data-account-back]").forEach(button => button.addEventListener("click", () => {
+      setAccountMode("sign-in");
+    }));
+
+    setPasswordForm.addEventListener("submit", event => {
+      event.preventDefault();
+      const password = setPasswordForm.elements.password.value;
+      if (password !== setPasswordForm.elements.confirmPassword.value) {
+        accountNote.textContent = "The passwords don’t match. Please check and try again.";
+        return;
+      }
+      const button = setPasswordForm.querySelector('button[type="submit"]');
+      runAccountAction(button, "Updating password...", () => supabaseClient.auth.updateUser({ password }), "Password updated.");
+      setPasswordForm.reset();
+    });
+
+    usernameForm.addEventListener("submit", event => {
+      event.preventDefault();
+      if (!signedInUser) return;
+      const username = usernameForm.elements.username.value.trim();
+      const button = usernameForm.querySelector('button[type="submit"]');
+      runAccountAction(button, "Saving username...", async () => {
+        const { data, error } = await supabaseClient
+          .from("profiles")
+          .update({ username })
+          .eq("id", signedInUser.id)
+          .select("username")
+          .single();
+        if (error) return { error };
+        usernameForm.elements.username.value = data.username;
+        return { error: null };
+      }, "Username updated.");
+    });
+
+    emailForm.addEventListener("submit", event => {
+      event.preventDefault();
+      const button = emailForm.querySelector('button[type="submit"]');
+      runAccountAction(
+        button,
+        "Requesting email change...",
+        () => supabaseClient.auth.updateUser(
+          { email: emailForm.elements.email.value.trim() },
+          { emailRedirectTo: `${window.location.origin}${window.location.pathname}` }
+        ),
+        "Check your inboxes to confirm the email change."
+      );
+    });
+
+    changePasswordForm.addEventListener("submit", event => {
+      event.preventDefault();
+      const password = changePasswordForm.elements.password.value;
+      if (password !== changePasswordForm.elements.confirmPassword.value) {
+        accountNote.textContent = "The passwords don’t match. Please check and try again.";
+        return;
+      }
+      const button = changePasswordForm.querySelector('button[type="submit"]');
+      runAccountAction(button, "Updating password...", () => supabaseClient.auth.updateUser({ password }), "Password updated.");
+      changePasswordForm.reset();
+    });
+
     document.querySelector("#categories").addEventListener("click", event => {
       const button = event.target.closest("[data-category]");
       if (!button) return;
@@ -474,12 +667,7 @@
     accountButton.addEventListener("click", () => {
       setAccountMode("sign-in");
       accountDialog.showModal();
-      if (signedInUser) {
-        accountTabs.hidden = true;
-        signInForm.hidden = true;
-        createAccountForm.hidden = true;
-        accountUser.hidden = false;
-      } else {
+      if (!signedInUser) {
         signInForm.elements.email.focus();
       }
     });
@@ -487,7 +675,10 @@
     accountDialog.addEventListener("click", event => {
       if (event.target === accountDialog) accountDialog.close();
     });
-    signInTab.addEventListener("click", () => setAccountMode("sign-in"));
+    signInTab.addEventListener("click", () => {
+      resetRequestForm.hidden = true;
+      setAccountMode("sign-in");
+    });
     createAccountTab.addEventListener("click", () => setAccountMode("create"));
     signInForm.addEventListener("submit", event => {
       event.preventDefault();
@@ -511,7 +702,19 @@
       }).catch(error => {
         accountNote.textContent = error.message || "Couldn't check your sign-in status.";
       });
-      supabaseClient.auth.onAuthStateChange((_event, session) => setAccountUser(session?.user || null));
+      supabaseClient.auth.onAuthStateChange((event, session) => {
+        setAccountUser(session?.user || null);
+        if (event === "PASSWORD_RECOVERY") {
+          accountTabs.hidden = true;
+          accountUser.hidden = true;
+          accountForms.forEach(form => { form.hidden = true; });
+          setPasswordForm.hidden = false;
+          accountTitle.textContent = "Choose a new password";
+          accountDescription.textContent = "Set a new password for your Souq account.";
+          accountNote.textContent = "";
+          if (!accountDialog.open) accountDialog.showModal();
+        }
+      });
     } else {
       setAccountUser(null);
     }
