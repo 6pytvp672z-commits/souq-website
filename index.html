@@ -170,10 +170,38 @@
     .card-info { padding: 14px 15px 15px; }
     .product-category { color: var(--muted); font-size: 11px; font-weight: 750; letter-spacing: .8px; text-transform: uppercase; }
     .product-title { margin: 5px 0 10px; font-size: 15px; font-weight: 700; }
+    .product-description { min-height: 40px; margin: 0 0 12px; color: var(--muted); font-size: 12px; }
     .product-bottom { display: flex; align-items: center; justify-content: space-between; }
     .price { font-size: 17px; font-weight: 800; }
     .location { color: var(--muted); font-size: 12px; }
+    .seller-rating { margin: 8px 0; color: var(--gold-soft); font-size: 12px; }
+    .buy-button {
+      width: 100%; height: 40px; margin-top: 12px; color: #14120c; background: var(--green);
+      border: 0; border-radius: 10px; font-weight: 750;
+    }
+    .buy-button:hover { background: var(--gold-soft); }
     .empty { grid-column: 1 / -1; padding: 40px; text-align: center; color: var(--muted); background: var(--white); border: 1px solid var(--line); border-radius: var(--radius); }
+    .listing-dialog {
+      width: min(520px, calc(100% - 32px)); max-height: min(88vh, 760px); overflow-y: auto;
+      padding: 27px; color: var(--ink); background: var(--white); border: 1px solid #6b5726;
+      border-radius: 22px; box-shadow: 0 24px 80px #000a;
+    }
+    .listing-dialog::backdrop { background: #000a; backdrop-filter: blur(4px); }
+    .listing-heading { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 18px; }
+    .listing-heading h2 { margin: 0; }
+    .listing-subtitle { margin: 5px 0 0; color: var(--muted); font-size: 13px; }
+    .listing-form { display: grid; gap: 13px; }
+    .listing-form label { display: grid; gap: 6px; font-size: 13px; font-weight: 650; }
+    .listing-form input, .listing-form select, .listing-form textarea {
+      width: 100%; padding: 11px 12px; color: var(--ink); background: #11110f;
+      border: 1px solid var(--line); border-radius: 10px; font: inherit;
+    }
+    .listing-form textarea { min-height: 100px; resize: vertical; }
+    .listing-note { min-height: 20px; margin: 0; color: var(--muted); font-size: 12px; }
+    .order-list { display: grid; gap: 10px; }
+    .order-item { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; }
+    .order-item p { margin: 0; color: var(--muted); font-size: 12px; }
+    .order-item button { min-height: 36px; color: #14120c; background: var(--green); border: 0; border-radius: 9px; font-weight: 700; }
     footer { padding: 25px 0 35px; color: var(--muted); border-top: 1px solid var(--line); font-size: 13px; }
     .toast {
       position: fixed; right: 24px; bottom: 24px; z-index: 5; padding: 12px 18px; color: #14120c;
@@ -211,6 +239,7 @@
       .card-info { padding: 12px; }
       .product-title { min-height: 42px; }
       .location { font-size: 11px; }
+      .listing-dialog { padding: 20px; }
     }
   </style>
 </head>
@@ -224,7 +253,7 @@
     </nav>
     <div class="actions">
       <button class="icon-button" id="accountButton">Sign in</button>
-      <button class="icon-button" id="cartButton" aria-label="Shopping bag">Bag <span id="cartCount">0</span></button>
+      <button class="icon-button" id="cartButton">My orders</button>
       <button class="sell-button" id="sellButton">＋ Sell an item</button>
     </div>
   </header>
@@ -262,6 +291,7 @@
         <button class="category" data-category="Tech">Tech</button>
         <button class="category" data-category="Books">Books</button>
         <button class="category" data-category="Outdoors">Outdoors</button>
+        <button class="category" data-category="Other">Other</button>
       </div>
       <div class="grid" id="productGrid" aria-live="polite"></div>
     </section>
@@ -284,7 +314,7 @@
       <button class="account-tab" id="createAccountTab" type="button" role="tab" aria-selected="false" aria-controls="createAccountForm">Create account</button>
     </div>
     <form class="account-form" id="signInForm">
-      <label>Email address<input name="email" type="email" autocomplete="email" placeholder="you@example.com" required></label>
+      <label>Username, email, or phone<input name="identifier" type="text" autocomplete="username" placeholder="username, you@example.com, or +961..." required></label>
       <label>Password<input name="password" type="password" autocomplete="current-password" placeholder="Your password" required></label>
       <button class="account-submit" type="submit">Sign in</button>
     </form>
@@ -330,9 +360,42 @@
           <button class="account-submit" type="submit">Update password</button>
         </form>
       </section>
+      <section class="manage-section" aria-labelledby="phoneHeading">
+        <h3 id="phoneHeading">Phone sign-in</h3>
+        <form class="account-form" id="phoneForm">
+          <label>Phone number<input name="phone" type="tel" autocomplete="tel" placeholder="+961 3 123 456" required></label>
+          <label>SMS verification code<input name="token" inputmode="numeric" autocomplete="one-time-code" placeholder="Enter the code we texted you"></label>
+          <button class="account-submit" type="submit">Send verification code</button>
+          <button class="account-submit" id="verifyPhoneButton" type="button">Verify phone number</button>
+        </form>
+      </section>
+      <section class="manage-section" aria-labelledby="ordersHeading">
+        <h3 id="ordersHeading">My purchases and sales</h3>
+        <div class="order-list" id="orderList"><p>Sign in to see your orders.</p></div>
+      </section>
       <button class="account-submit sign-out-button" id="signOutButton" type="button">Sign out</button>
     </section>
     <p class="account-note" id="accountNote" role="status"></p>
+  </dialog>
+  <dialog class="listing-dialog" id="listingDialog" aria-labelledby="listingTitle">
+    <div class="listing-heading">
+      <div>
+        <h2 id="listingTitle">Sell an item</h2>
+        <p class="listing-subtitle">Add a clear description and price for your item.</p>
+      </div>
+      <button class="dialog-close" id="closeListing" type="button" aria-label="Close">✕</button>
+    </div>
+    <form class="listing-form" id="listingForm">
+      <label>Item name<input name="title" maxlength="100" required></label>
+      <label>Category<select name="category" required>
+        <option>Home</option><option>Fashion</option><option>Tech</option><option>Books</option><option>Outdoors</option><option>Other</option>
+      </select></label>
+      <label>Price (USD)<input name="price" type="number" min="0.01" max="1000000" step="0.01" required></label>
+      <label>Location<input name="location" maxlength="100" placeholder="City or neighborhood" required></label>
+      <label>Description<textarea name="description" minlength="10" maxlength="2000" placeholder="Describe the item's condition, size, and useful details." required></textarea></label>
+      <button class="account-submit" type="submit">Publish listing</button>
+      <p class="listing-note" id="listingNote" role="status"></p>
+    </form>
   </dialog>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -343,16 +406,19 @@
       ? window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY)
       : null;
 
-    const products = [
-      { name: "Hand-thrown ceramic vase", category: "Home", price: 28, location: "Oakwood · 0.8 mi", icon: "🏺", art: "amber" },
-      { name: "Weekend market tote", category: "Fashion", price: 18, location: "Riverside · 1.2 mi", icon: "👜", art: "sage" },
-      { name: "Instant film camera", category: "Tech", price: 64, location: "Downtown · 1.5 mi", icon: "📷", art: "lilac" },
-      { name: "The little garden book", category: "Books", price: 12, location: "Oakwood · 1.7 mi", icon: "📚", art: "blue" },
-      { name: "Vintage table lamp", category: "Home", price: 42, location: "Parkside · 2.1 mi", icon: "💡", art: "rose" },
-      { name: "Everyday knit sweater", category: "Fashion", price: 35, location: "Riverside · 2.4 mi", icon: "🧶", art: "yellow" },
-      { name: "Trail-ready daypack", category: "Outdoors", price: 48, location: "Hillcrest · 2.8 mi", icon: "🎒", art: "sky" },
-      { name: "Pocket-size headphones", category: "Tech", price: 30, location: "Downtown · 3 mi", icon: "🎧", art: "peach" }
+    const sampleProducts = [
+      { name: "Hand-thrown ceramic vase", category: "Home", price: 28, location: "Oakwood · 0.8 mi", icon: "🏺", art: "amber", description: "Handmade ceramic vase in excellent condition." },
+      { name: "Weekend market tote", category: "Fashion", price: 18, location: "Riverside · 1.2 mi", icon: "👜", art: "sage", description: "Durable everyday tote with plenty of room." },
+      { name: "Instant film camera", category: "Tech", price: 64, location: "Downtown · 1.5 mi", icon: "📷", art: "lilac", description: "Vintage instant camera, tested and working." },
+      { name: "The little garden book", category: "Books", price: 12, location: "Oakwood · 1.7 mi", icon: "📚", art: "blue", description: "A gently used guide for small-space gardens." },
+      { name: "Vintage table lamp", category: "Home", price: 42, location: "Parkside · 2.1 mi", icon: "💡", art: "rose", description: "Warm vintage lamp in good working condition." },
+      { name: "Everyday knit sweater", category: "Fashion", price: 35, location: "Riverside · 2.4 mi", icon: "🧶", art: "yellow", description: "Soft knit sweater, clean and ready to wear." },
+      { name: "Trail-ready daypack", category: "Outdoors", price: 48, location: "Hillcrest · 2.8 mi", icon: "🎒", art: "sky", description: "Lightweight daypack with adjustable straps." },
+      { name: "Pocket-size headphones", category: "Tech", price: 30, location: "Downtown · 3 mi", icon: "🎧", art: "peach", description: "Compact headphones with clear sound." }
     ];
+    let liveListings = [];
+    let sellerRatings = new Map();
+    let sellerProfiles = new Map();
 
     const grid = document.querySelector("#productGrid");
     const searchInput = document.querySelector("#searchInput");
@@ -371,22 +437,33 @@
     const usernameForm = document.querySelector("#usernameForm");
     const emailForm = document.querySelector("#emailForm");
     const changePasswordForm = document.querySelector("#changePasswordForm");
+    const phoneForm = document.querySelector("#phoneForm");
     const accountUser = document.querySelector("#accountUser");
     const accountEmail = document.querySelector("#accountEmail");
     const accountButton = document.querySelector("#accountButton");
     const accountTabs = document.querySelector(".account-tabs");
     const forgotPasswordButton = document.querySelector("#forgotPasswordButton");
+    const listingDialog = document.querySelector("#listingDialog");
+    const listingForm = document.querySelector("#listingForm");
+    const listingNote = document.querySelector("#listingNote");
+    const orderList = document.querySelector("#orderList");
     const accountForms = [signInForm, createAccountForm, resetRequestForm, setPasswordForm];
     let activeCategory = "All";
-    let cartCount = 0;
     let toastTimer;
     let signedInUser = null;
 
+    function escapeHTML(value) {
+      return String(value ?? "").replace(/[&<>"']/g, character => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+      })[character]);
+    }
+
     function renderProducts() {
       const query = searchInput.value.trim().toLowerCase();
+      const products = [...liveListings, ...sampleProducts];
       const filtered = products.filter(product => {
         const matchesCategory = activeCategory === "All" || product.category === activeCategory;
-        const matchesQuery = `${product.name} ${product.category} ${product.location}`.toLowerCase().includes(query);
+        const matchesQuery = `${product.name} ${product.category} ${product.location} ${product.description}`.toLowerCase().includes(query);
         return matchesCategory && matchesQuery;
       });
 
@@ -398,18 +475,210 @@
 
       grid.innerHTML = filtered.map(product => {
         const index = products.indexOf(product);
+        const rating = product.seller_id && sellerRatings.get(product.seller_id);
+        const sellerUsername = product.seller_id && sellerProfiles.get(product.seller_id);
+        const ratingText = rating
+          ? `★ ${Number(rating.average_rating).toFixed(1)} · ${rating.rating_count} ${Number(rating.rating_count) === 1 ? "rating" : "ratings"}`
+          : product.seller_id ? "New seller" : "Sample listing";
         return `<article class="card">
-          <div class="product-art art-${product.art}">
-            <span aria-hidden="true">${product.icon}</span>
-            <button class="favorite" data-favorite="${index}" aria-label="Save ${product.name}" aria-pressed="false">♡</button>
+          <div class="product-art art-${escapeHTML(product.art || "amber")}">
+            <span aria-hidden="true">${escapeHTML(product.icon || "🛍️")}</span>
+            <button class="favorite" data-favorite="${index}" aria-label="Save ${escapeHTML(product.name)}" aria-pressed="false">♡</button>
           </div>
           <div class="card-info">
-            <div class="product-category">${product.category}</div>
-            <h3 class="product-title">${product.name}</h3>
-            <div class="product-bottom"><span class="price">$${product.price}</span><span class="location">${product.location}</span></div>
+            <div class="product-category">${escapeHTML(product.category)}</div>
+            <h3 class="product-title">${escapeHTML(product.name)}</h3>
+            <p class="product-description">${escapeHTML(product.description)}</p>
+            <div class="seller-rating">${ratingText}${sellerUsername ? ` · @${escapeHTML(sellerUsername)}` : ""}</div>
+            <div class="product-bottom"><span class="price">$${Number(product.price).toFixed(2)}</span><span class="location">${escapeHTML(product.location)}</span></div>
+            ${product.id ? `<button class="buy-button" data-buy="${escapeHTML(product.id)}">Request to buy</button>` : ""}
           </div>
         </article>`;
       }).join("");
+    }
+
+    async function loadListings() {
+      if (!supabaseClient) return;
+      const { data, error } = await supabaseClient
+        .from("listings")
+        .select("id,title,category,price,location,description,seller_id")
+        .eq("status", "available")
+        .order("created_at", { ascending: false });
+      if (error) {
+        showToast(`Couldn't load live listings: ${error.message}`);
+        return;
+      }
+      liveListings = (data || []).map(listing => ({ ...listing, name: listing.title, art: "amber", icon: "🛍️" }));
+
+      const sellerIds = [...new Set(liveListings.map(listing => listing.seller_id))];
+      if (sellerIds.length) {
+        const [{ data: ratings, error: ratingsError }, { data: profiles, error: profilesError }] = await Promise.all([
+          supabaseClient
+            .from("seller_rating_summary")
+            .select("seller_id,average_rating,rating_count")
+            .in("seller_id", sellerIds),
+          supabaseClient
+            .from("seller_public_profiles")
+            .select("id,username")
+            .in("id", sellerIds)
+        ]);
+        if (ratingsError) {
+          showToast(`Couldn't load seller ratings: ${ratingsError.message}`);
+        } else {
+          sellerRatings = new Map((ratings || []).map(rating => [rating.seller_id, rating]));
+        }
+        if (profilesError) {
+          showToast(`Couldn't load seller names: ${profilesError.message}`);
+        } else {
+          sellerProfiles = new Map((profiles || []).map(profile => [profile.id, profile.username]));
+        }
+      }
+      renderProducts();
+    }
+
+    async function loadOrders(user) {
+      if (!supabaseClient || !user) return;
+      const { data, error } = await supabaseClient
+        .from("orders")
+        .select("id,status,buyer_id,seller_id,listing_id,created_at,listings(title,price),seller_reviews(id)")
+        .or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`)
+        .order("created_at", { ascending: false });
+      if (error) {
+        orderList.innerHTML = `<p>Couldn't load orders: ${escapeHTML(error.message)}</p>`;
+        return;
+      }
+      if (!data?.length) {
+        orderList.innerHTML = "<p>No purchases or sales yet.</p>";
+        return;
+      }
+      orderList.innerHTML = data.map(order => {
+        const title = escapeHTML(order.listings?.title || "Souq item");
+        const role = order.buyer_id === user.id ? "Buyer" : "Seller";
+        const status = escapeHTML(order.status);
+        let action = "";
+        if (role === "Seller" && order.status === "pending") {
+          action = `<button type="button" data-complete-order="${escapeHTML(order.id)}">Mark sale complete</button>
+            <button type="button" data-cancel-order="${escapeHTML(order.id)}">Decline request</button>`;
+        } else if (role === "Buyer" && order.status === "completed" && !order.seller_reviews?.length) {
+          action = `<button type="button" data-rate-order="${escapeHTML(order.id)}" data-seller="${escapeHTML(order.seller_id)}">Rate seller</button>`;
+        }
+        return `<article class="order-item">
+          <strong>${title}</strong>
+          <p>${role} · ${status}${order.listings?.price ? ` · $${Number(order.listings.price).toFixed(2)}` : ""}</p>
+          ${action}
+        </article>`;
+      }).join("");
+    }
+
+    async function requestPurchase(listingId) {
+      if (!signedInUser) {
+        accountDialog.showModal();
+        accountNote.textContent = "Sign in to request to buy this item.";
+        return;
+      }
+      const listing = liveListings.find(item => item.id === listingId);
+      if (listing?.seller_id === signedInUser.id) {
+        showToast("You can't buy your own listing.");
+        return;
+      }
+      const { error } = await supabaseClient.from("orders").insert({
+        listing_id: listingId,
+        buyer_id: signedInUser.id,
+        seller_id: listing?.seller_id
+      });
+      if (error) {
+        showToast(`Couldn't request this item: ${error.message}`);
+        return;
+      }
+      showToast("Purchase request sent. The seller can find it under My orders.");
+      loadOrders(signedInUser);
+    }
+
+    async function publishListing(form) {
+      if (!signedInUser) {
+        listingDialog.close();
+        accountDialog.showModal();
+        accountNote.textContent = "Sign in before publishing a listing.";
+        return;
+      }
+      const submit = form.querySelector('button[type="submit"]');
+      submit.disabled = true;
+      listingNote.textContent = "Publishing listing...";
+      try {
+        const { error } = await supabaseClient.from("listings").insert({
+          seller_id: signedInUser.id,
+          title: form.elements.title.value.trim(),
+          category: form.elements.category.value,
+          price: Number(form.elements.price.value),
+          location: form.elements.location.value.trim(),
+          description: form.elements.description.value.trim()
+        });
+        if (error) throw error;
+        form.reset();
+        listingDialog.close();
+        await loadListings();
+        showToast("Your listing is live.");
+      } catch (error) {
+        listingNote.textContent = `Couldn't publish listing: ${error.message || "Please try again."}`;
+      } finally {
+        submit.disabled = false;
+      }
+    }
+
+    async function completeOrder(orderId) {
+      const { error } = await supabaseClient
+        .from("orders")
+        .update({ status: "completed" })
+        .eq("id", orderId)
+        .eq("seller_id", signedInUser.id);
+      if (error) {
+        accountNote.textContent = `Couldn't complete the sale: ${error.message}`;
+        return;
+      }
+      accountNote.textContent = "Sale marked complete. The buyer can now rate you.";
+      await Promise.all([loadOrders(signedInUser), loadListings()]);
+    }
+
+    async function cancelOrder(orderId) {
+      const { error } = await supabaseClient
+        .from("orders")
+        .update({ status: "cancelled" })
+        .eq("id", orderId)
+        .eq("seller_id", signedInUser.id);
+      if (error) {
+        accountNote.textContent = `Couldn't decline the request: ${error.message}`;
+        return;
+      }
+      accountNote.textContent = "Purchase request declined. The listing is available again.";
+      loadOrders(signedInUser);
+    }
+
+    async function rateSeller(orderId, sellerId) {
+      const answer = window.prompt("Rate this seller from 1 to 5 stars:");
+      if (answer === null) return;
+      const rating = Number(answer);
+      if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+        accountNote.textContent = "Enter a whole number from 1 to 5.";
+        return;
+      }
+      const comment = window.prompt("Optional comment about the seller:") || "";
+      if (comment.trim().length > 500) {
+        accountNote.textContent = "Seller comments must be 500 characters or fewer.";
+        return;
+      }
+      const { error } = await supabaseClient.from("seller_reviews").insert({
+        order_id: orderId,
+        buyer_id: signedInUser.id,
+        seller_id: sellerId,
+        rating,
+        comment: comment.trim()
+      });
+      if (error) {
+        accountNote.textContent = `Couldn't save seller rating: ${error.message}`;
+        return;
+      }
+      accountNote.textContent = "Thanks for rating this seller.";
+      await Promise.all([loadOrders(signedInUser), loadListings()]);
     }
 
     function showToast(message) {
@@ -454,7 +723,7 @@
       if (signedIn) {
         accountTitle.textContent = "Your Souq account";
         accountDescription.textContent = "You are signed in securely.";
-        accountEmail.textContent = user.email || "";
+        accountEmail.textContent = user.email || user.phone || "";
         usernameForm.elements.username.value = user.user_metadata?.username || "";
         loadAccountProfile(user);
         accountNote.textContent = "";
@@ -484,6 +753,8 @@
         return;
       }
       if (data?.username) usernameForm.elements.username.value = data.username;
+      phoneForm.elements.phone.value = user.phone || "";
+      loadOrders(user);
     }
 
     async function runAccountAction(button, progress, action, success) {
@@ -514,12 +785,29 @@
       submitButton.disabled = true;
       accountNote.textContent = mode === "sign-in" ? "Signing in..." : "Creating your account...";
       try {
-        const email = form.elements.email.value.trim();
         const password = form.elements.password.value;
-        const result = mode === "sign-in"
-          ? await supabaseClient.auth.signInWithPassword({ email, password })
-          : await supabaseClient.auth.signUp({
-              email,
+        let result;
+        if (mode === "sign-in") {
+          const identifier = form.elements.identifier.value.trim();
+          const normalizedPhone = identifier.replace(/[()\s-]/g, "");
+          if (identifier.includes("@")) {
+            result = await supabaseClient.auth.signInWithPassword({ email: identifier, password });
+          } else if (/^\+[1-9]\d{6,14}$/.test(normalizedPhone)) {
+            result = await supabaseClient.auth.signInWithPassword({ phone: normalizedPhone, password });
+          } else {
+            const { data, error } = await supabaseClient.functions.invoke("username-login", {
+              body: { identifier, password }
+            });
+            if (error) throw error;
+            if (!data?.access_token || !data?.refresh_token) throw new Error("Username sign-in is unavailable. Try your email or phone.");
+            result = await supabaseClient.auth.setSession({
+              access_token: data.access_token,
+              refresh_token: data.refresh_token
+            });
+          }
+        } else {
+          result = await supabaseClient.auth.signUp({
+              email: form.elements.email.value.trim(),
               password,
               options: {
                 emailRedirectTo: `${window.location.origin}${window.location.pathname}`,
@@ -529,6 +817,7 @@
                 }
               }
             });
+        }
 
         if (result.error) throw result.error;
         if (mode === "create" && !result.data.session) {
@@ -565,7 +854,8 @@
       accountTitle.textContent = "Reset your password";
       accountDescription.textContent = "We’ll email you a secure password reset link.";
       accountNote.textContent = "";
-      resetRequestForm.elements.email.value = signInForm.elements.email.value;
+      const signInIdentifier = signInForm.elements.identifier.value.trim();
+      resetRequestForm.elements.email.value = signInIdentifier.includes("@") ? signInIdentifier : "";
       resetRequestForm.elements.email.focus();
     });
 
@@ -642,6 +932,34 @@
       changePasswordForm.reset();
     });
 
+    phoneForm.addEventListener("submit", event => {
+      event.preventDefault();
+      const phone = phoneForm.elements.phone.value.replace(/[()\s-]/g, "");
+      const button = phoneForm.querySelector('button[type="submit"]');
+      runAccountAction(
+        button,
+        "Sending verification code...",
+        () => supabaseClient.auth.updateUser({ phone }),
+        "Code sent by SMS. Enter it above and choose Verify phone number."
+      );
+    });
+
+    document.querySelector("#verifyPhoneButton").addEventListener("click", () => {
+      const phone = phoneForm.elements.phone.value.replace(/[()\s-]/g, "");
+      const token = phoneForm.elements.token.value.trim();
+      if (!phone || !token) {
+        accountNote.textContent = "Enter your phone number and the SMS verification code.";
+        return;
+      }
+      const button = document.querySelector("#verifyPhoneButton");
+      runAccountAction(
+        button,
+        "Verifying phone number...",
+        () => supabaseClient.auth.verifyOtp({ phone, token, type: "phone_change" }),
+        "Phone number verified. You can now sign in with it."
+      );
+    });
+
     document.querySelector("#categories").addEventListener("click", event => {
       const button = event.target.closest("[data-category]");
       if (!button) return;
@@ -656,6 +974,11 @@
     });
     searchInput.addEventListener("input", renderProducts);
     grid.addEventListener("click", event => {
+      const buyButton = event.target.closest("[data-buy]");
+      if (buyButton) {
+        requestPurchase(buyButton.dataset.buy);
+        return;
+      }
       const favorite = event.target.closest("[data-favorite]");
       if (!favorite) return;
       const saved = favorite.getAttribute("aria-pressed") !== "true";
@@ -664,11 +987,25 @@
       favorite.textContent = saved ? "♥" : "♡";
       showToast(saved ? "Saved to your favorites" : "Removed from your favorites");
     });
+    orderList.addEventListener("click", event => {
+      const completeButton = event.target.closest("[data-complete-order]");
+      if (completeButton) {
+        completeOrder(completeButton.dataset.completeOrder);
+        return;
+      }
+      const cancelButton = event.target.closest("[data-cancel-order]");
+      if (cancelButton) {
+        cancelOrder(cancelButton.dataset.cancelOrder);
+        return;
+      }
+      const rateButton = event.target.closest("[data-rate-order]");
+      if (rateButton) rateSeller(rateButton.dataset.rateOrder, rateButton.dataset.seller);
+    });
     accountButton.addEventListener("click", () => {
       setAccountMode("sign-in");
       accountDialog.showModal();
       if (!signedInUser) {
-        signInForm.elements.email.focus();
+        signInForm.elements.identifier.focus();
       }
     });
     document.querySelector("#closeAccount").addEventListener("click", () => accountDialog.close());
@@ -689,8 +1026,32 @@
       submitAccountForm(createAccountForm, "create");
     });
     document.querySelector("#signOutButton").addEventListener("click", signOut);
-    document.querySelector("#cartButton").addEventListener("click", () => showToast(`Your bag has ${cartCount} ${cartCount === 1 ? "item" : "items"}`));
-    document.querySelector("#sellButton").addEventListener("click", () => showToast("Seller signup is coming soon!"));
+    document.querySelector("#cartButton").addEventListener("click", () => {
+      accountDialog.showModal();
+      if (!signedInUser) {
+        setAccountMode("sign-in");
+        accountNote.textContent = "Sign in to see your purchases and sales.";
+      }
+    });
+    document.querySelector("#sellButton").addEventListener("click", () => {
+      if (!supabaseClient) {
+        showToast("Account and listing service is not configured.");
+      } else if (!signedInUser) {
+        accountDialog.showModal();
+        accountNote.textContent = "Sign in before publishing a listing.";
+      } else {
+        listingNote.textContent = "";
+        listingDialog.showModal();
+      }
+    });
+    listingForm.addEventListener("submit", event => {
+      event.preventDefault();
+      publishListing(listingForm);
+    });
+    document.querySelector("#closeListing").addEventListener("click", () => listingDialog.close());
+    listingDialog.addEventListener("click", event => {
+      if (event.target === listingDialog) listingDialog.close();
+    });
 
     if (supabaseClient) {
       supabaseClient.auth.getSession().then(({ data, error }) => {
@@ -720,6 +1081,7 @@
     }
 
     renderProducts();
+    loadListings();
   </script>
 </body>
 </html>
