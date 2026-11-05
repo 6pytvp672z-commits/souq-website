@@ -19,6 +19,7 @@
     }
 
     * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
     body {
       margin: 0;
       color: var(--ink);
@@ -174,17 +175,58 @@
     .card-info { padding: 14px 15px 15px; }
     .product-category { color: var(--muted); font-size: 11px; font-weight: 750; letter-spacing: .8px; text-transform: uppercase; }
     .product-title { margin: 5px 0 10px; font-size: 15px; font-weight: 700; }
+    .product-title-link:hover { color: var(--gold-soft); }
     .product-description { min-height: 40px; margin: 0 0 12px; color: var(--muted); font-size: 12px; }
     .product-bottom { display: flex; align-items: center; justify-content: space-between; }
     .price { font-size: 17px; font-weight: 800; }
     .location { color: var(--muted); font-size: 12px; }
     .seller-rating { margin: 8px 0; color: var(--gold-soft); font-size: 12px; }
+    .product-actions { display: grid; gap: 9px; margin-top: 12px; }
+    .product-open-link, .order-product-link {
+      color: var(--gold-soft); font-size: 13px; font-weight: 700; text-decoration: underline;
+      text-underline-offset: 3px;
+    }
+    .product-open-link:hover, .order-product-link:hover { color: var(--green); }
     .buy-button {
-      width: 100%; height: 40px; margin-top: 12px; color: #14120c; background: var(--green);
+      width: 100%; height: 40px; margin-top: 0; color: #14120c; background: var(--green);
       border: 0; border-radius: 10px; font-weight: 750;
     }
     .buy-button:hover { background: var(--gold-soft); }
     .empty { grid-column: 1 / -1; padding: 40px; text-align: center; color: var(--muted); background: var(--white); border: 1px solid var(--line); border-radius: var(--radius); }
+    .product-detail { padding: 34px 0 60px; }
+    .product-back-link { display: inline-flex; margin-bottom: 22px; color: var(--gold-soft); font-weight: 700; }
+    .product-detail-grid { display: grid; grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr); gap: 34px; align-items: start; }
+    .product-detail-art {
+      position: relative; display: grid; min-height: 340px; place-items: center; overflow: hidden;
+      border: 1px solid var(--line); border-radius: 24px; color: var(--gold-soft); font-size: 112px;
+    }
+    .product-detail-art::after {
+      position: absolute; width: 190px; height: 190px; content: ""; border: 1px solid #ffffff80; border-radius: 50%;
+    }
+    .product-detail-info { padding-top: 8px; }
+    .product-detail-info h1 { max-width: none; margin: 8px 0 12px; font-size: clamp(32px, 4.4vw, 48px); line-height: 1.08; letter-spacing: -1.8px; }
+    .detail-price { margin: 0 0 8px; color: var(--gold-soft); font-size: 25px; font-weight: 800; }
+    .detail-seller { margin: 10px 0; color: var(--muted); }
+    .detail-description { min-height: 0; margin: 18px 0; color: var(--muted); font-size: 16px; }
+    .product-review-section {
+      margin-top: 34px; padding: 24px; background: var(--white);
+      border: 1px solid var(--line); border-radius: var(--radius);
+    }
+    .product-review-section h2 { font-size: 21px; }
+    .product-rating-summary { margin: 10px 0; color: var(--gold-soft); font-weight: 700; }
+    .product-review-status { min-height: 20px; margin: 10px 0; color: var(--muted); font-size: 13px; }
+    .product-review-form { display: grid; justify-items: start; gap: 14px; }
+    .star-picker { margin: 0; padding: 0; border: 0; }
+    .star-options { display: flex; flex-direction: row-reverse; justify-content: flex-end; gap: 4px; width: max-content; }
+    .star-picker legend { margin-bottom: 9px; color: var(--ink); font-size: 13px; font-weight: 700; }
+    .star-picker input {
+      position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden;
+      clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+    }
+    .star-picker label { color: var(--line); cursor: pointer; font-size: 34px; line-height: 1; }
+    .star-picker label:hover, .star-picker label:hover ~ label, .star-picker input:checked ~ label { color: var(--green); }
+    .star-picker input:focus-visible + label { outline: 2px solid var(--gold-soft); outline-offset: 3px; border-radius: 3px; }
+    .product-review-form .account-submit { min-width: 150px; padding: 0 20px; }
     .listing-dialog {
       width: min(520px, calc(100% - 32px)); max-height: min(88vh, 760px); overflow-y: auto;
       padding: 27px; color: var(--ink); background: var(--white); border: 1px solid #6b5726;
@@ -206,6 +248,7 @@
     .order-item { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; }
     .order-item p { margin: 0; color: var(--muted); font-size: 12px; }
     .order-item button { min-height: 36px; color: #14120c; background: var(--green); border: 0; border-radius: 9px; font-weight: 700; }
+    .order-item .order-product-link { justify-self: start; }
     footer { padding: 25px 0 35px; color: var(--muted); border-top: 1px solid var(--line); font-size: 13px; }
     .toast {
       position: fixed; right: 24px; bottom: 24px; z-index: 5; padding: 12px 18px; color: #14120c;
@@ -219,6 +262,8 @@
       .hero { grid-template-columns: 1fr .7fr; }
       .hero-art { min-height: 230px; }
       .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .product-detail-grid { grid-template-columns: 1fr; gap: 22px; }
+      .product-detail-art { min-height: 270px; }
     }
     @media (max-width: 600px) {
       .wrap { width: min(100% - 32px, 460px); }
@@ -244,12 +289,14 @@
       .product-title { min-height: 42px; }
       .location { font-size: 11px; }
       .listing-dialog { padding: 20px; }
+      .product-detail-art { min-height: 220px; font-size: 84px; }
+      .product-review-section { padding: 18px; }
     }
   </style>
 </head>
 <body>
   <header class="wrap topbar">
-    <a class="brand" href="#" aria-label="Souq home"><span class="brand-mark">s</span>souq</a>
+    <a class="brand" href="./" aria-label="Souq home"><span class="brand-mark">s</span>souq</a>
     <nav class="nav" aria-label="Main navigation">
       <a href="#discover">Discover</a>
       <a href="#categories">Categories</a>
@@ -263,6 +310,43 @@
   </header>
 
   <main class="wrap">
+    <section class="product-detail" id="productDetail" hidden aria-labelledby="productDetailTitle">
+      <a class="product-back-link" href="./">← Back to all finds</a>
+      <div class="empty" id="productPageStatus" role="status">Loading product details...</div>
+      <div class="product-detail-content" id="productDetailContent" hidden>
+        <div class="product-detail-grid">
+          <div class="product-detail-art art-amber" id="productDetailArt" aria-hidden="true"></div>
+          <div class="product-detail-info">
+            <p class="product-category" id="productDetailCategory"></p>
+            <h1 id="productDetailTitle"></h1>
+            <p class="detail-price" id="productDetailPrice"></p>
+            <p class="location" id="productDetailLocation"></p>
+            <p class="detail-seller" id="productDetailSeller"></p>
+            <p class="detail-description" id="productDetailDescription"></p>
+            <button class="buy-button" id="productBuyButton" type="button" hidden>Request to buy</button>
+          </div>
+        </div>
+        <section class="product-review-section" aria-labelledby="productReviewHeading">
+          <h2 id="productReviewHeading">Customer ratings</h2>
+          <p class="product-rating-summary" id="productRatingSummary">Loading ratings...</p>
+          <p class="product-review-status" id="productReviewStatus" role="status" aria-live="polite"></p>
+          <button class="account-submit" id="productReviewSignIn" type="button" hidden>Sign in to rate</button>
+          <form class="product-review-form" id="productReviewForm" hidden>
+            <fieldset class="star-picker">
+              <legend>Choose a rating</legend>
+              <div class="star-options">
+              <input id="productRating5" name="rating" type="radio" value="5" required><label for="productRating5" title="5 stars" aria-label="5 stars">★</label>
+              <input id="productRating4" name="rating" type="radio" value="4"><label for="productRating4" title="4 stars" aria-label="4 stars">★</label>
+              <input id="productRating3" name="rating" type="radio" value="3"><label for="productRating3" title="3 stars" aria-label="3 stars">★</label>
+              <input id="productRating2" name="rating" type="radio" value="2"><label for="productRating2" title="2 stars" aria-label="2 stars">★</label>
+              <input id="productRating1" name="rating" type="radio" value="1"><label for="productRating1" title="1 star" aria-label="1 star">★</label>
+              </div>
+            </fieldset>
+            <button class="account-submit" type="submit">Submit rating</button>
+          </form>
+        </section>
+      </div>
+    </section>
     <section class="hero" aria-labelledby="heroTitle">
       <div>
         <div class="eyebrow">Good finds, close by</div>
@@ -435,14 +519,14 @@
       : null;
 
     const sampleProducts = [
-      { name: "Hand-thrown ceramic vase", category: "Home", price: 28, location: "Oakwood · 0.8 mi", icon: "🏺", art: "amber", description: "Handmade ceramic vase in excellent condition." },
-      { name: "Weekend market tote", category: "Fashion", price: 18, location: "Riverside · 1.2 mi", icon: "👜", art: "sage", description: "Durable everyday tote with plenty of room." },
-      { name: "Instant film camera", category: "Tech", price: 64, location: "Downtown · 1.5 mi", icon: "📷", art: "lilac", description: "Vintage instant camera, tested and working." },
-      { name: "The little garden book", category: "Books", price: 12, location: "Oakwood · 1.7 mi", icon: "📚", art: "blue", description: "A gently used guide for small-space gardens." },
-      { name: "Vintage table lamp", category: "Home", price: 42, location: "Parkside · 2.1 mi", icon: "💡", art: "rose", description: "Warm vintage lamp in good working condition." },
-      { name: "Everyday knit sweater", category: "Fashion", price: 35, location: "Riverside · 2.4 mi", icon: "🧶", art: "yellow", description: "Soft knit sweater, clean and ready to wear." },
-      { name: "Trail-ready daypack", category: "Outdoors", price: 48, location: "Hillcrest · 2.8 mi", icon: "🎒", art: "sky", description: "Lightweight daypack with adjustable straps." },
-      { name: "Pocket-size headphones", category: "Tech", price: 30, location: "Downtown · 3 mi", icon: "🎧", art: "peach", description: "Compact headphones with clear sound." }
+      { id: "sample-vase", name: "Hand-thrown ceramic vase", category: "Home", price: 28, location: "Oakwood · 0.8 mi", icon: "🏺", art: "amber", description: "Handmade ceramic vase in excellent condition." },
+      { id: "sample-tote", name: "Weekend market tote", category: "Fashion", price: 18, location: "Riverside · 1.2 mi", icon: "👜", art: "sage", description: "Durable everyday tote with plenty of room." },
+      { id: "sample-camera", name: "Instant film camera", category: "Tech", price: 64, location: "Downtown · 1.5 mi", icon: "📷", art: "lilac", description: "Vintage instant camera, tested and working." },
+      { id: "sample-garden-book", name: "The little garden book", category: "Books", price: 12, location: "Oakwood · 1.7 mi", icon: "📚", art: "blue", description: "A gently used guide for small-space gardens." },
+      { id: "sample-lamp", name: "Vintage table lamp", category: "Home", price: 42, location: "Parkside · 2.1 mi", icon: "💡", art: "rose", description: "Warm vintage lamp in good working condition." },
+      { id: "sample-sweater", name: "Everyday knit sweater", category: "Fashion", price: 35, location: "Riverside · 2.4 mi", icon: "🧶", art: "yellow", description: "Soft knit sweater, clean and ready to wear." },
+      { id: "sample-daypack", name: "Trail-ready daypack", category: "Outdoors", price: 48, location: "Hillcrest · 2.8 mi", icon: "🎒", art: "sky", description: "Lightweight daypack with adjustable straps." },
+      { id: "sample-headphones", name: "Pocket-size headphones", category: "Tech", price: 30, location: "Downtown · 3 mi", icon: "🎧", art: "peach", description: "Compact headphones with clear sound." }
     ];
     let liveListings = [];
     let sellerRatings = new Map();
@@ -482,11 +566,30 @@
     const listingDialog = document.querySelector("#listingDialog");
     const listingForm = document.querySelector("#listingForm");
     const listingNote = document.querySelector("#listingNote");
+    const productDetail = document.querySelector("#productDetail");
+    const productPageStatus = document.querySelector("#productPageStatus");
+    const productDetailContent = document.querySelector("#productDetailContent");
+    const productDetailArt = document.querySelector("#productDetailArt");
+    const productDetailCategory = document.querySelector("#productDetailCategory");
+    const productDetailTitle = document.querySelector("#productDetailTitle");
+    const productDetailPrice = document.querySelector("#productDetailPrice");
+    const productDetailLocation = document.querySelector("#productDetailLocation");
+    const productDetailSeller = document.querySelector("#productDetailSeller");
+    const productDetailDescription = document.querySelector("#productDetailDescription");
+    const productBuyButton = document.querySelector("#productBuyButton");
+    const productRatingSummary = document.querySelector("#productRatingSummary");
+    const productReviewStatus = document.querySelector("#productReviewStatus");
+    const productReviewSignIn = document.querySelector("#productReviewSignIn");
+    const productReviewForm = document.querySelector("#productReviewForm");
+    const requestedProductId = new URLSearchParams(window.location.search).get("product");
     const orderList = document.querySelector("#orderList");
     const accountForms = [signInForm, createAccountForm, resetRequestForm, setPasswordForm];
     let activeCategory = "All";
     let toastTimer;
     let signedInUser = null;
+    let currentProduct = null;
+    let eligibleProductOrderId = null;
+    let productReviewRequestId = 0;
     let mfaLoginChallenge = null;
     let enrollingMfaFactorId = null;
     let verifiedMfaFactorId = null;
@@ -497,6 +600,14 @@
       return String(value ?? "").replace(/[&<>"']/g, character => ({
         "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
       })[character]);
+    }
+
+    function productPageUrl(productId) {
+      const url = new URL(window.location.href);
+      url.search = "";
+      url.hash = "";
+      url.searchParams.set("product", productId);
+      return `${url.pathname}${url.search}`;
     }
 
     function renderProducts() {
@@ -516,6 +627,7 @@
 
       grid.innerHTML = filtered.map(product => {
         const index = products.indexOf(product);
+        const productUrl = escapeHTML(productPageUrl(product.id));
         const rating = product.seller_id && sellerRatings.get(product.seller_id);
         const sellerUsername = product.seller_id && sellerProfiles.get(product.seller_id);
         const ratingText = rating
@@ -528,11 +640,14 @@
           </div>
           <div class="card-info">
             <div class="product-category">${escapeHTML(product.category)}</div>
-            <h3 class="product-title">${escapeHTML(product.name)}</h3>
+            <h3 class="product-title"><a class="product-title-link" href="${productUrl}" target="_blank" rel="noopener noreferrer">${escapeHTML(product.name)}</a></h3>
             <p class="product-description">${escapeHTML(product.description)}</p>
             <div class="seller-rating">${ratingText}${sellerUsername ? ` · @${escapeHTML(sellerUsername)}` : ""}</div>
             <div class="product-bottom"><span class="price">$${Number(product.price).toFixed(2)}</span><span class="location">${escapeHTML(product.location)}</span></div>
-            ${product.id ? `<button class="buy-button" data-buy="${escapeHTML(product.id)}">Request to buy</button>` : ""}
+            <div class="product-actions">
+              <a class="product-open-link" href="${productUrl}" target="_blank" rel="noopener noreferrer">Open product ↗</a>
+              ${product.seller_id ? `<button class="buy-button" data-buy="${escapeHTML(product.id)}">Request to buy</button>` : ""}
+            </div>
           </div>
         </article>`;
       }).join("");
@@ -577,6 +692,153 @@
       renderProducts();
     }
 
+    function displayProduct(product) {
+      currentProduct = product;
+      productDetail.hidden = false;
+      productPageStatus.hidden = true;
+      productDetailContent.hidden = false;
+      const art = ["amber", "sage", "lilac", "blue", "rose", "yellow", "sky", "peach"].includes(product.art) ? product.art : "amber";
+      productDetailArt.className = `product-detail-art art-${art}`;
+      productDetailArt.textContent = product.icon || "🛍️";
+      productDetailCategory.textContent = product.category || "Other";
+      productDetailTitle.textContent = product.name || product.title || "Souq product";
+      productDetailPrice.textContent = `$${Number(product.price).toFixed(2)}`;
+      productDetailLocation.textContent = product.location || "";
+      productDetailSeller.textContent = product.seller_id ? "Loading seller..." : "Souq sample item";
+      productDetailDescription.textContent = product.description || "";
+      productBuyButton.hidden = !product.seller_id || product.status !== "available";
+      productRatingSummary.textContent = product.seller_id ? "Loading ratings..." : "Sample listing";
+      productReviewStatus.textContent = "";
+      productReviewForm.hidden = true;
+      productReviewForm.reset();
+      productReviewSignIn.hidden = true;
+      eligibleProductOrderId = null;
+      document.title = `${product.name || product.title || "Product"} — Souq`;
+    }
+
+    async function loadProductRatingSummary(product) {
+      if (!product.seller_id) {
+        productRatingSummary.textContent = "Ratings are available for live listings.";
+        return;
+      }
+      const { data, error } = await supabaseClient
+        .from("product_rating_summary")
+        .select("average_rating,rating_count")
+        .eq("listing_id", product.id)
+        .maybeSingle();
+      if (error) {
+        productRatingSummary.textContent = `Couldn't load product ratings: ${error.message}`;
+        return;
+      }
+      if (!data) {
+        productRatingSummary.textContent = "No customer ratings yet.";
+        return;
+      }
+      const count = Number(data.rating_count);
+      productRatingSummary.textContent = `★ ${Number(data.average_rating).toFixed(1)} average · ${count} ${count === 1 ? "rating" : "ratings"}`;
+    }
+
+    async function refreshProductReviewState() {
+      const requestId = ++productReviewRequestId;
+      eligibleProductOrderId = null;
+      productReviewForm.hidden = true;
+      productReviewSignIn.hidden = true;
+      if (!currentProduct) return;
+      if (!currentProduct.seller_id) {
+        productReviewStatus.textContent = "Sample products are previews. Ratings are available for live items after a completed purchase.";
+        return;
+      }
+      if (!signedInUser) {
+        productReviewStatus.textContent = "Sign in to rate this product after completing a purchase.";
+        productReviewSignIn.hidden = false;
+        return;
+      }
+
+      const userId = signedInUser.id;
+      productReviewStatus.textContent = "Checking your purchase...";
+      const [{ data: review, error: reviewError }, { data: order, error: orderError }] = await Promise.all([
+        supabaseClient
+          .from("product_reviews")
+          .select("rating")
+          .eq("listing_id", currentProduct.id)
+          .eq("buyer_id", userId)
+          .maybeSingle(),
+        supabaseClient
+          .from("orders")
+          .select("id")
+          .eq("listing_id", currentProduct.id)
+          .eq("buyer_id", userId)
+          .eq("status", "completed")
+          .limit(1)
+          .maybeSingle()
+      ]);
+      if (requestId !== productReviewRequestId || signedInUser?.id !== userId) return;
+      if (reviewError) {
+        productReviewStatus.textContent = `Couldn't check your product rating: ${reviewError.message}`;
+        return;
+      }
+      if (orderError) {
+        productReviewStatus.textContent = `Couldn't check your purchase: ${orderError.message}`;
+        return;
+      }
+      if (review) {
+        productReviewStatus.textContent = `You rated this product ${review.rating} ${Number(review.rating) === 1 ? "star" : "stars"}. Thank you.`;
+        return;
+      }
+      if (!order) {
+        productReviewStatus.textContent = "Only customers with a completed purchase can rate this product.";
+        return;
+      }
+      eligibleProductOrderId = order.id;
+      productReviewStatus.textContent = "Your purchase is complete. Share your rating.";
+      productReviewForm.hidden = false;
+    }
+
+    async function loadProductPage() {
+      productDetail.hidden = false;
+      productPageStatus.hidden = false;
+      productDetailContent.hidden = true;
+      productPageStatus.textContent = "Loading product details...";
+      const sampleProduct = sampleProducts.find(product => product.id === requestedProductId);
+      if (sampleProduct) {
+        displayProduct({ ...sampleProduct, status: "sample" });
+        await refreshProductReviewState();
+        return;
+      }
+      if (!supabaseClient) {
+        productPageStatus.textContent = "Product details require the Souq listing service.";
+        return;
+      }
+      try {
+        const { data, error } = await supabaseClient
+          .from("listings")
+          .select("id,title,category,price,location,description,seller_id,status")
+          .eq("id", requestedProductId)
+          .maybeSingle();
+        if (error) throw error;
+        if (!data) {
+          productPageStatus.textContent = "This product isn't available or couldn't be found.";
+          return;
+        }
+        const product = { ...data, name: data.title, art: "amber", icon: "🛍️" };
+        displayProduct(product);
+        const [{ data: profile, error: profileError }] = await Promise.all([
+          supabaseClient
+            .from("seller_public_profiles")
+            .select("username")
+            .eq("id", product.seller_id)
+            .maybeSingle(),
+          loadProductRatingSummary(product),
+          refreshProductReviewState()
+        ]);
+        productDetailSeller.textContent = profileError
+          ? `Couldn't load seller details: ${profileError.message}`
+          : profile?.username ? `Seller @${profile.username}` : "Souq seller";
+      } catch (error) {
+        productPageStatus.textContent = `Couldn't load product details: ${error.message || "Please try again."}`;
+      }
+    }
+
     async function loadOrders(user) {
       if (!supabaseClient || !user) return;
       const { data, error } = await supabaseClient
@@ -603,10 +865,14 @@
         } else if (role === "Buyer" && order.status === "completed" && !order.seller_reviews?.length) {
           action = `<button type="button" data-rate-order="${escapeHTML(order.id)}" data-seller="${escapeHTML(order.seller_id)}">Rate seller</button>`;
         }
+        const productAction = role === "Buyer" && order.listing_id
+          ? `<a class="order-product-link" href="${escapeHTML(productPageUrl(order.listing_id))}" target="_blank" rel="noopener noreferrer">${order.status === "completed" ? "View product / rate" : "View product"} ↗</a>`
+          : "";
         return `<article class="order-item">
           <strong>${title}</strong>
           <p>${role} · ${status}${order.listings?.price ? ` · $${Number(order.listings.price).toFixed(2)}` : ""}</p>
           ${action}
+          ${productAction}
         </article>`;
       }).join("");
     }
@@ -617,9 +883,18 @@
         accountNote.textContent = "Sign in to request to buy this item.";
         return;
       }
-      const listing = liveListings.find(item => item.id === listingId);
+      const listing = liveListings.find(item => item.id === listingId)
+        || (currentProduct?.id === listingId ? currentProduct : null);
+      if (!listing) {
+        showToast("Couldn't find this listing. Refresh the page and try again.");
+        return;
+      }
       if (listing?.seller_id === signedInUser.id) {
         showToast("You can't buy your own listing.");
+        return;
+      }
+      if (listing.status && listing.status !== "available") {
+        showToast("This item is no longer available.");
         return;
       }
       const { error } = await supabaseClient.from("orders").insert({
@@ -722,6 +997,39 @@
       await Promise.all([loadOrders(signedInUser), loadListings()]);
     }
 
+    async function submitProductRating(form) {
+      if (!signedInUser || !currentProduct?.seller_id || !eligibleProductOrderId) {
+        productReviewStatus.textContent = "A completed purchase is required to rate this product.";
+        return;
+      }
+      const rating = Number(form.elements.rating.value);
+      if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+        productReviewStatus.textContent = "Choose a rating from 1 to 5 stars.";
+        return;
+      }
+      const button = form.querySelector('button[type="submit"]');
+      button.disabled = true;
+      productReviewStatus.textContent = "Saving your rating...";
+      try {
+        const { error } = await supabaseClient.from("product_reviews").insert({
+          listing_id: currentProduct.id,
+          order_id: eligibleProductOrderId,
+          buyer_id: signedInUser.id,
+          rating
+        });
+        if (error) throw error;
+        form.reset();
+        await Promise.all([
+          loadProductRatingSummary(currentProduct),
+          refreshProductReviewState()
+        ]);
+      } catch (error) {
+        productReviewStatus.textContent = `Couldn't save your product rating: ${error.message || "Please try again."}`;
+      } finally {
+        button.disabled = false;
+      }
+    }
+
     function showToast(message) {
       toast.textContent = message;
       toast.classList.add("show");
@@ -799,6 +1107,7 @@
           if (!session?.user) {
             mfaLoginChallenge = null;
             setAccountUser(null);
+            if (currentProduct) await refreshProductReviewState();
             return;
           }
 
@@ -834,6 +1143,10 @@
           mfaLoginChallenge = null;
           setAccountUser(session.user);
           await refreshMfaSettings();
+          if (requestedProductId) {
+            if (currentProduct) await refreshProductReviewState();
+            else await loadProductPage();
+          }
           if (passwordRecoveryPending) {
             passwordRecoveryPending = false;
             accountTabs.hidden = true;
@@ -1222,6 +1535,19 @@
       favorite.textContent = saved ? "♥" : "♡";
       showToast(saved ? "Saved to your favorites" : "Removed from your favorites");
     });
+    productBuyButton.addEventListener("click", () => {
+      if (currentProduct?.id) requestPurchase(currentProduct.id);
+    });
+    productReviewSignIn.addEventListener("click", () => {
+      setAccountMode("sign-in");
+      accountNote.textContent = "Sign in to rate this product after completing a purchase.";
+      accountDialog.showModal();
+      signInForm.elements.identifier.focus();
+    });
+    productReviewForm.addEventListener("submit", event => {
+      event.preventDefault();
+      submitProductRating(productReviewForm);
+    });
     orderList.addEventListener("click", event => {
       const completeButton = event.target.closest("[data-complete-order]");
       if (completeButton) {
@@ -1310,8 +1636,16 @@
       setAccountUser(null);
     }
 
-    renderProducts();
-    loadListings();
+    if (requestedProductId) {
+      document.querySelector(".hero").hidden = true;
+      document.querySelector("#discover").hidden = true;
+      document.querySelector(".nav").hidden = true;
+      document.querySelector("footer").hidden = true;
+      loadProductPage();
+    } else {
+      renderProducts();
+      loadListings();
+    }
   </script>
 </body>
 </html>

@@ -349,3 +349,53 @@ as
   group by seller_id;
 
 grant select on public.seller_rating_summary to anon, authenticated;
+
+create table if not exists public.product_reviews (
+  id uuid primary key default gen_random_uuid(),
+  listing_id uuid not null references public.listings (id) on delete cascade,
+  order_id uuid not null unique references public.orders (id) on delete cascade,
+  buyer_id uuid not null references auth.users (id) on delete cascade,
+  rating smallint not null check (rating between 1 and 5),
+  created_at timestamptz not null default now(),
+  unique (listing_id, buyer_id)
+);
+
+alter table public.product_reviews enable row level security;
+revoke all on public.product_reviews from public, anon, authenticated;
+grant select, insert on public.product_reviews to authenticated;
+
+drop policy if exists "Customers can view their product ratings" on public.product_reviews;
+create policy "Customers can view their product ratings"
+  on public.product_reviews for select to authenticated
+  using (
+    (select public.user_meets_mfa_requirement())
+    and buyer_id = (select auth.uid())
+  );
+
+drop policy if exists "Customers can rate completed purchases" on public.product_reviews;
+create policy "Customers can rate completed purchases"
+  on public.product_reviews for insert to authenticated
+  with check (
+    (select public.user_meets_mfa_requirement())
+    and buyer_id = (select auth.uid())
+    and exists (
+      select 1
+      from public.orders
+      where orders.id = product_reviews.order_id
+        and orders.listing_id = product_reviews.listing_id
+        and orders.buyer_id = (select auth.uid())
+        and orders.status = 'completed'
+    )
+  );
+
+create or replace view public.product_rating_summary
+with (security_invoker = false)
+as
+  select
+    listing_id,
+    round(avg(rating)::numeric, 1) as average_rating,
+    count(*)::integer as rating_count
+  from public.product_reviews
+  group by listing_id;
+
+grant select on public.product_rating_summary to anon, authenticated;
