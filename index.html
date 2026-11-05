@@ -93,6 +93,10 @@
     .manage-section .account-form label { font-size: 12px; }
     .manage-section .account-form input { height: 42px; }
     .manage-section .account-submit, .account-user > .account-submit { height: 42px; }
+    .mfa-setup { display: grid; gap: 10px; }
+    .mfa-setup[hidden], .mfa-login-form[hidden] { display: none; }
+    .mfa-qr { width: 180px; max-width: 100%; padding: 8px; background: #fff; border-radius: 10px; }
+    .mfa-secret { overflow-wrap: anywhere; color: var(--gold-soft); font-family: ui-monospace, monospace; }
     .sign-out-button { color: var(--ink); background: transparent; border: 1px solid var(--line); }
     .sign-out-button:hover { border-color: var(--green); }
     .account-submit {
@@ -336,6 +340,11 @@
       <label>Confirm new password<input name="confirmPassword" type="password" autocomplete="new-password" placeholder="Enter it again" minlength="8" required></label>
       <button class="account-submit" type="submit">Set new password</button>
     </form>
+    <form class="account-form mfa-login-form" id="mfaLoginForm" hidden>
+      <label>Authenticator code<input name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6,8}" maxlength="8" placeholder="6-digit code" required></label>
+      <button class="account-submit" type="submit">Verify code</button>
+      <button class="account-link" id="cancelMfaSignIn" type="button">Cancel and sign out</button>
+    </form>
     <section class="account-user" id="accountUser" hidden>
       <p>Signed in as <strong id="accountEmail"></strong></p>
       <section class="manage-section" aria-labelledby="usernameHeading">
@@ -367,6 +376,25 @@
           <label>SMS verification code<input name="token" inputmode="numeric" autocomplete="one-time-code" placeholder="Enter the code we texted you"></label>
           <button class="account-submit" type="submit">Send verification code</button>
           <button class="account-submit" id="verifyPhoneButton" type="button">Verify phone number</button>
+        </form>
+      </section>
+      <section class="manage-section" aria-labelledby="authenticatorHeading">
+        <h3 id="authenticatorHeading">Authenticator app</h3>
+        <p id="mfaStatus">Checking authenticator status...</p>
+        <button class="account-submit" id="startMfaSetup" type="button" hidden>Set up authenticator</button>
+        <div class="mfa-setup" id="mfaSetup" hidden>
+          <p>Scan this QR code with your authenticator app. Keep the setup key private.</p>
+          <img class="mfa-qr" id="mfaQr" alt="Authenticator setup QR code">
+          <p>Can't scan it? Enter this setup key manually:</p>
+          <strong class="mfa-secret" id="mfaSecret"></strong>
+          <form class="account-form" id="verifyMfaSetupForm">
+            <label>Authenticator code<input name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6,8}" maxlength="8" required></label>
+            <button class="account-submit" type="submit">Verify and enable</button>
+          </form>
+        </div>
+        <form class="account-form" id="disableMfaForm" hidden>
+          <label>Authenticator code to disable<input name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6,8}" maxlength="8" required></label>
+          <button class="account-submit" type="submit">Disable authenticator</button>
         </form>
       </section>
       <section class="manage-section" aria-labelledby="ordersHeading">
@@ -438,6 +466,14 @@
     const emailForm = document.querySelector("#emailForm");
     const changePasswordForm = document.querySelector("#changePasswordForm");
     const phoneForm = document.querySelector("#phoneForm");
+    const mfaLoginForm = document.querySelector("#mfaLoginForm");
+    const mfaStatus = document.querySelector("#mfaStatus");
+    const mfaSetup = document.querySelector("#mfaSetup");
+    const mfaQr = document.querySelector("#mfaQr");
+    const mfaSecret = document.querySelector("#mfaSecret");
+    const startMfaSetupButton = document.querySelector("#startMfaSetup");
+    const verifyMfaSetupForm = document.querySelector("#verifyMfaSetupForm");
+    const disableMfaForm = document.querySelector("#disableMfaForm");
     const accountUser = document.querySelector("#accountUser");
     const accountEmail = document.querySelector("#accountEmail");
     const accountButton = document.querySelector("#accountButton");
@@ -451,6 +487,11 @@
     let activeCategory = "All";
     let toastTimer;
     let signedInUser = null;
+    let mfaLoginChallenge = null;
+    let enrollingMfaFactorId = null;
+    let verifiedMfaFactorId = null;
+    let authSyncPromise = null;
+    let passwordRecoveryPending = false;
 
     function escapeHTML(value) {
       return String(value ?? "").replace(/[&<>"']/g, character => ({
@@ -719,6 +760,7 @@
         forgotPasswordButton.hidden = creating;
       }
       accountUser.hidden = !signedIn;
+      mfaLoginForm.hidden = true;
       accountButton.textContent = signedIn ? "My account" : "Sign in";
       if (signedIn) {
         accountTitle.textContent = "Your Souq account";
@@ -739,6 +781,93 @@
           ? ""
           : "Account service is not configured yet. Connect Souq to Supabase to enable accounts.";
       }
+    }
+
+    async function syncAuthenticatedSession(session) {
+        if (authSyncPromise) return authSyncPromise;
+        authSyncPromise = (async () => {
+          if (!session?.user) {
+            mfaLoginChallenge = null;
+            setAccountUser(null);
+            return;
+          }
+
+          const { data: assurance, error: assuranceError } = await supabaseClient.auth.mfa.getAuthenticatorAssuranceLevel();
+          if (assuranceError) throw assuranceError;
+          if (assurance.nextLevel === "aal2" && assurance.currentLevel !== "aal2") {
+            const { data: factors, error: factorsError } = await supabaseClient.auth.mfa.listFactors();
+            if (factorsError) throw factorsError;
+            const factor = factors.totp.find(item => item.status === "verified");
+            if (!factor) throw new Error("An authenticator is required, but no verified factor is available.");
+            if (!mfaLoginChallenge || mfaLoginChallenge.factorId !== factor.id) {
+              const { data: challenge, error: challengeError } = await supabaseClient.auth.mfa.challenge({ factorId: factor.id });
+              if (challengeError) throw challengeError;
+              mfaLoginChallenge = { factorId: factor.id, challengeId: challenge.id };
+            }
+            setAccountUser(null);
+            accountTabs.hidden = true;
+            forgotPasswordButton.hidden = true;
+            signInForm.hidden = true;
+            createAccountForm.hidden = true;
+            mfaLoginForm.hidden = false;
+            mfaLoginForm.elements.code.focus();
+            accountTitle.textContent = "Verify your sign-in";
+            accountDescription.textContent = "Enter the current code from your authenticator app.";
+            accountNote.textContent = "Your account needs an authenticator code to finish signing in.";
+            if (!accountDialog.open) accountDialog.showModal();
+            return;
+          }
+
+          mfaLoginChallenge = null;
+          setAccountUser(session.user);
+          await refreshMfaSettings();
+          if (passwordRecoveryPending) {
+            passwordRecoveryPending = false;
+            accountTabs.hidden = true;
+            accountUser.hidden = true;
+            accountForms.forEach(form => { form.hidden = true; });
+            setPasswordForm.hidden = false;
+            accountTitle.textContent = "Choose a new password";
+            accountDescription.textContent = "Set a new password for your Souq account.";
+            accountNote.textContent = "";
+            if (!accountDialog.open) accountDialog.showModal();
+            return;
+          }
+          if (accountDialog.open) accountDialog.close();
+        })().catch(error => {
+          setAccountUser(null);
+          accountNote.textContent = error.message || "We couldn't verify your sign-in. Please try again.";
+          if (!accountDialog.open) accountDialog.showModal();
+        }).finally(() => {
+          authSyncPromise = null;
+        });
+        return authSyncPromise;
+      }
+
+    async function refreshMfaSettings() {
+        const { data, error } = await supabaseClient.auth.mfa.listFactors();
+        if (error) {
+          mfaStatus.textContent = `Couldn't check authenticator status: ${error.message}`;
+          startMfaSetupButton.hidden = true;
+          disableMfaForm.hidden = true;
+          return;
+        }
+        const factor = data.totp.find(item => item.status === "verified");
+        verifiedMfaFactorId = factor?.id || null;
+        if (factor) {
+          mfaStatus.textContent = "Authenticator app is enabled for this account.";
+          startMfaSetupButton.hidden = true;
+          disableMfaForm.hidden = false;
+        } else {
+          mfaStatus.textContent = "Add an authenticator app for an extra sign-in step.";
+          startMfaSetupButton.hidden = false;
+          disableMfaForm.hidden = true;
+        }
+      }
+
+    async function verifyMfaCode(factorId, challengeId, code) {
+      const { error } = await supabaseClient.auth.mfa.verify({ factorId, challengeId, code: code.trim() });
+      if (error) throw error;
     }
 
     async function loadAccountProfile(user) {
@@ -820,6 +949,11 @@
         }
 
         if (result.error) throw result.error;
+        if (mode === "sign-in") {
+          form.reset();
+          await syncAuthenticatedSession(result.data.session);
+          return;
+        }
         if (mode === "create" && !result.data.session) {
           accountNote.textContent = "Account created. Check your email to confirm your address, then sign in.";
           form.reset();
@@ -844,6 +978,94 @@
       }
       accountNote.textContent = "You are signed out.";
     }
+
+    mfaLoginForm.addEventListener("submit", async event => {
+      event.preventDefault();
+      if (!mfaLoginChallenge) {
+        accountNote.textContent = "Sign-in verification expired. Please sign in again.";
+        return;
+      }
+      const button = mfaLoginForm.querySelector('button[type="submit"]');
+      button.disabled = true;
+      accountNote.textContent = "Verifying authenticator code...";
+      try {
+        await verifyMfaCode(mfaLoginChallenge.factorId, mfaLoginChallenge.challengeId, mfaLoginForm.elements.code.value);
+        mfaLoginForm.reset();
+        const { data, error } = await supabaseClient.auth.getSession();
+        if (error) throw error;
+        await syncAuthenticatedSession(data.session);
+      } catch (error) {
+        accountNote.textContent = error.message || "That code could not be verified. Try the latest code in your app.";
+      } finally {
+        button.disabled = false;
+      }
+    });
+
+    document.querySelector("#cancelMfaSignIn").addEventListener("click", signOut);
+
+    startMfaSetupButton.addEventListener("click", async () => {
+      startMfaSetupButton.disabled = true;
+      accountNote.textContent = "Preparing authenticator setup...";
+      try {
+        const { data, error } = await supabaseClient.auth.mfa.enroll({ factorType: "totp", issuer: "Souq" });
+        if (error) throw error;
+        enrollingMfaFactorId = data.id;
+        mfaQr.src = data.totp.qr_code;
+        mfaSecret.textContent = data.totp.secret;
+        mfaSetup.hidden = false;
+        accountNote.textContent = "Scan the QR code, then enter the code from your authenticator app.";
+      } catch (error) {
+        accountNote.textContent = error.message || "Couldn't start authenticator setup.";
+      } finally {
+        startMfaSetupButton.disabled = false;
+      }
+    });
+
+    verifyMfaSetupForm.addEventListener("submit", async event => {
+      event.preventDefault();
+      if (!enrollingMfaFactorId) return;
+      const button = verifyMfaSetupForm.querySelector('button[type="submit"]');
+      button.disabled = true;
+      accountNote.textContent = "Verifying and enabling your authenticator...";
+      try {
+        const { data: challenge, error: challengeError } = await supabaseClient.auth.mfa.challenge({ factorId: enrollingMfaFactorId });
+        if (challengeError) throw challengeError;
+        await verifyMfaCode(enrollingMfaFactorId, challenge.id, verifyMfaSetupForm.elements.code.value);
+        enrollingMfaFactorId = null;
+        verifyMfaSetupForm.reset();
+        mfaSetup.hidden = true;
+        mfaQr.removeAttribute("src");
+        mfaSecret.textContent = "";
+        await refreshMfaSettings();
+        accountNote.textContent = "Authenticator app enabled.";
+      } catch (error) {
+        accountNote.textContent = error.message || "Couldn't verify that authenticator code.";
+      } finally {
+        button.disabled = false;
+      }
+    });
+
+    disableMfaForm.addEventListener("submit", async event => {
+      event.preventDefault();
+      if (!verifiedMfaFactorId) return;
+      const button = disableMfaForm.querySelector('button[type="submit"]');
+      button.disabled = true;
+      accountNote.textContent = "Verifying code before disabling authenticator...";
+      try {
+        const { data: challenge, error: challengeError } = await supabaseClient.auth.mfa.challenge({ factorId: verifiedMfaFactorId });
+        if (challengeError) throw challengeError;
+        await verifyMfaCode(verifiedMfaFactorId, challenge.id, disableMfaForm.elements.code.value);
+        const { error } = await supabaseClient.auth.mfa.unenroll({ factorId: verifiedMfaFactorId });
+        if (error) throw error;
+        disableMfaForm.reset();
+        await refreshMfaSettings();
+        accountNote.textContent = "Authenticator app disabled.";
+      } catch (error) {
+        accountNote.textContent = error.message || "Couldn't disable the authenticator.";
+      } finally {
+        button.disabled = false;
+      }
+    });
 
     forgotPasswordButton.addEventListener("click", () => {
       signInTab.setAttribute("aria-selected", "true");
@@ -1059,21 +1281,16 @@
           accountNote.textContent = error.message || "Couldn't check your sign-in status.";
           return;
         }
-        setAccountUser(data.session?.user || null);
+        return syncAuthenticatedSession(data.session);
       }).catch(error => {
         accountNote.textContent = error.message || "Couldn't check your sign-in status.";
       });
       supabaseClient.auth.onAuthStateChange((event, session) => {
-        setAccountUser(session?.user || null);
         if (event === "PASSWORD_RECOVERY") {
-          accountTabs.hidden = true;
-          accountUser.hidden = true;
-          accountForms.forEach(form => { form.hidden = true; });
-          setPasswordForm.hidden = false;
-          accountTitle.textContent = "Choose a new password";
-          accountDescription.textContent = "Set a new password for your Souq account.";
-          accountNote.textContent = "";
-          if (!accountDialog.open) accountDialog.showModal();
+          passwordRecoveryPending = true;
+          Promise.resolve().then(() => syncAuthenticatedSession(session));
+        } else {
+          Promise.resolve().then(() => syncAuthenticatedSession(session));
         }
       });
     } else {

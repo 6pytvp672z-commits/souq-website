@@ -39,20 +39,40 @@ alter table public.profiles enable row level security;
 revoke all on public.profiles from anon, authenticated;
 grant select, update on public.profiles to authenticated;
 
+create or replace function public.user_meets_mfa_requirement()
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select
+    not exists (
+      select 1
+      from auth.mfa_factors
+      where user_id = (select auth.uid())
+        and status = 'verified'
+    )
+    or coalesce((select auth.jwt() ->> 'aal'), '') = 'aal2';
+$$;
+
+revoke all on function public.user_meets_mfa_requirement() from public;
+grant execute on function public.user_meets_mfa_requirement() to anon, authenticated;
+
 drop policy if exists "Users can read their own profile" on public.profiles;
 create policy "Users can read their own profile"
   on public.profiles
   for select
   to authenticated
-  using ((select auth.uid()) = id);
+  using ((select public.user_meets_mfa_requirement()) and (select auth.uid()) = id);
 
 drop policy if exists "Users can update their own profile" on public.profiles;
 create policy "Users can update their own profile"
   on public.profiles
   for update
   to authenticated
-  using ((select auth.uid()) = id)
-  with check ((select auth.uid()) = id);
+  using ((select public.user_meets_mfa_requirement()) and (select auth.uid()) = id)
+  with check ((select public.user_meets_mfa_requirement()) and (select auth.uid()) = id);
 
 create or replace function public.create_profile_for_new_user()
 returns trigger
@@ -136,18 +156,31 @@ grant insert, update on public.listings to authenticated;
 drop policy if exists "Anyone can view available listings" on public.listings;
 create policy "Anyone can view available listings"
   on public.listings for select to anon, authenticated
-  using (status = 'available' or (select auth.uid()) = seller_id or (select auth.uid()) is not null);
+  using (
+    status = 'available'
+    or (
+      (select public.user_meets_mfa_requirement())
+      and (
+        (select auth.uid()) = seller_id
+        or (select auth.uid()) is not null
+      )
+    )
+  );
 
 drop policy if exists "Sellers can create listings" on public.listings;
 create policy "Sellers can create listings"
   on public.listings for insert to authenticated
-  with check ((select auth.uid()) = seller_id and status = 'available');
+  with check (
+    (select public.user_meets_mfa_requirement())
+    and (select auth.uid()) = seller_id
+    and status = 'available'
+  );
 
 drop policy if exists "Sellers can update their listings" on public.listings;
 create policy "Sellers can update their listings"
   on public.listings for update to authenticated
-  using ((select auth.uid()) = seller_id)
-  with check ((select auth.uid()) = seller_id);
+  using ((select public.user_meets_mfa_requirement()) and (select auth.uid()) = seller_id)
+  with check ((select public.user_meets_mfa_requirement()) and (select auth.uid()) = seller_id);
 
 create table if not exists public.orders (
   id uuid primary key default gen_random_uuid(),
@@ -181,32 +214,43 @@ as $$
 $$;
 
 revoke all on function public.user_can_view_listing(uuid) from public, anon;
-grant execute on function public.user_can_view_listing(uuid) to authenticated;
+grant execute on function public.user_can_view_listing(uuid) to anon, authenticated;
 
 drop policy if exists "Anyone can view available listings" on public.listings;
 create policy "Anyone can view available listings"
   on public.listings for select to anon, authenticated
   using (
     status = 'available'
-    or (select auth.uid()) = seller_id
-    or (select public.user_can_view_listing(id))
+    or (
+      (select public.user_meets_mfa_requirement())
+      and (
+        (select auth.uid()) = seller_id
+        or (select public.user_can_view_listing(id))
+      )
+    )
   );
 
 alter table public.orders enable row level security;
-revoke all on public.orders from anon, authenticated;
-grant select, insert on public.orders to authenticated;
+revoke all on public.orders from public, anon, authenticated;
+grant select on public.orders to authenticated;
+grant insert (listing_id, buyer_id, seller_id) on public.orders to authenticated;
 grant update (status) on public.orders to authenticated;
 
 drop policy if exists "Buyers and sellers can view their orders" on public.orders;
 create policy "Buyers and sellers can view their orders"
   on public.orders for select to authenticated
-  using ((select auth.uid()) in (buyer_id, seller_id));
+  using (
+    (select public.user_meets_mfa_requirement())
+    and (select auth.uid()) in (buyer_id, seller_id)
+  );
 
 drop policy if exists "Buyers can request available listings" on public.orders;
 create policy "Buyers can request available listings"
   on public.orders for insert to authenticated
   with check (
-    buyer_id = (select auth.uid())
+    (select public.user_meets_mfa_requirement())
+    and buyer_id = (select auth.uid())
+    and status = 'pending'
     and exists (
       select 1
       from public.listings
@@ -219,8 +263,16 @@ create policy "Buyers can request available listings"
 drop policy if exists "Sellers can complete pending orders" on public.orders;
 create policy "Sellers can complete pending orders"
   on public.orders for update to authenticated
-  using (seller_id = (select auth.uid()) and status = 'pending')
-  with check (seller_id = (select auth.uid()) and status in ('completed', 'cancelled'));
+  using (
+    (select public.user_meets_mfa_requirement())
+    and seller_id = (select auth.uid())
+    and status = 'pending'
+  )
+  with check (
+    (select public.user_meets_mfa_requirement())
+    and seller_id = (select auth.uid())
+    and status in ('completed', 'cancelled')
+  );
 
 create or replace function public.mark_listing_sold_after_order_completion()
 returns trigger
@@ -268,13 +320,17 @@ drop policy if exists "Anyone can read seller ratings" on public.seller_reviews;
 drop policy if exists "Participants can read their seller reviews" on public.seller_reviews;
 create policy "Participants can read their seller reviews"
   on public.seller_reviews for select to authenticated
-  using ((select auth.uid()) in (buyer_id, seller_id));
+  using (
+    (select public.user_meets_mfa_requirement())
+    and (select auth.uid()) in (buyer_id, seller_id)
+  );
 
 drop policy if exists "Buyers can rate completed sales" on public.seller_reviews;
 create policy "Buyers can rate completed sales"
   on public.seller_reviews for insert to authenticated
   with check (
-    buyer_id = (select auth.uid())
+    (select public.user_meets_mfa_requirement())
+    and buyer_id = (select auth.uid())
     and exists (
       select 1
       from public.orders
