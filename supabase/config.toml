@@ -1,0 +1,4 @@
+project_id = "fwfqeajhtxzubxuywfrm"
+
+[functions.btcpay-webhook]
+verify_jwt = false

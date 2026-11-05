@@ -192,6 +192,12 @@
       border: 0; border-radius: 10px; font-weight: 750;
     }
     .buy-button:hover { background: var(--gold-soft); }
+    .buy-button.bitcoin-button { color: var(--ink); background: transparent; border: 1px solid var(--green); }
+    .buy-button.bitcoin-button:hover { color: #14120c; background: var(--gold-soft); }
+    .buy-button:disabled { opacity: .7; cursor: wait; }
+    .buy-button.bitcoin-button[data-unavailable] { cursor: not-allowed; }
+    .buy-button.bitcoin-button[data-unavailable]:hover { color: var(--ink); background: transparent; }
+    .product-payment-status { min-height: 20px; margin: 9px 0 0; color: var(--muted); font-size: 12px; }
     .empty { grid-column: 1 / -1; padding: 40px; text-align: center; color: var(--muted); background: var(--white); border: 1px solid var(--line); border-radius: var(--radius); }
     .product-detail { padding: 34px 0 60px; }
     .product-back-link { display: inline-flex; margin-bottom: 22px; color: var(--gold-soft); font-weight: 700; }
@@ -324,6 +330,8 @@
             <p class="detail-seller" id="productDetailSeller"></p>
             <p class="detail-description" id="productDetailDescription"></p>
             <button class="buy-button" id="productBuyButton" type="button" hidden>Request to buy</button>
+            <button class="buy-button bitcoin-button" id="productBitcoinButton" type="button" hidden>Pay with BTC</button>
+            <p class="product-payment-status" id="productPaymentStatus" role="status" aria-live="polite"></p>
           </div>
         </div>
         <section class="product-review-section" aria-labelledby="productReviewHeading">
@@ -514,6 +522,12 @@
   <script>
     const SUPABASE_URL = "https://fwfqeajhtxzubxuywfrm.supabase.co";
     const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_7kn4J-pFn1tig_BqSJsm2g_n_5oc7xJ";
+    const BITCOIN_ORDER_FIELDS_AVAILABLE = false;
+    const BITCOIN_CHECKOUT_REQUESTED = false;
+    const BITCOIN_CHECKOUT_ENABLED = BITCOIN_ORDER_FIELDS_AVAILABLE && BITCOIN_CHECKOUT_REQUESTED;
+    if (BITCOIN_CHECKOUT_REQUESTED && !BITCOIN_ORDER_FIELDS_AVAILABLE) {
+      console.error("Bitcoin checkout requires the payment database migration.");
+    }
     const supabaseClient = SUPABASE_URL && SUPABASE_PUBLISHABLE_KEY && window.supabase
       ? window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY)
       : null;
@@ -577,6 +591,8 @@
     const productDetailSeller = document.querySelector("#productDetailSeller");
     const productDetailDescription = document.querySelector("#productDetailDescription");
     const productBuyButton = document.querySelector("#productBuyButton");
+    const productBitcoinButton = document.querySelector("#productBitcoinButton");
+    const productPaymentStatus = document.querySelector("#productPaymentStatus");
     const productRatingSummary = document.querySelector("#productRatingSummary");
     const productReviewStatus = document.querySelector("#productReviewStatus");
     const productReviewSignIn = document.querySelector("#productReviewSignIn");
@@ -647,6 +663,7 @@
             <div class="product-actions">
               <a class="product-open-link" href="${productUrl}" target="_blank" rel="noopener noreferrer">Open product ↗</a>
               ${product.seller_id ? `<button class="buy-button" data-buy="${escapeHTML(product.id)}">Request to buy</button>` : ""}
+              ${product.seller_id ? `<button class="buy-button bitcoin-button" data-bitcoin-buy="${escapeHTML(product.id)}"${BITCOIN_CHECKOUT_ENABLED ? "" : " disabled data-unavailable"}>${BITCOIN_CHECKOUT_ENABLED ? "Pay with BTC" : "Bitcoin checkout coming soon"}</button>` : ""}
             </div>
           </div>
         </article>`;
@@ -707,6 +724,11 @@
       productDetailSeller.textContent = product.seller_id ? "Loading seller..." : "Souq sample item";
       productDetailDescription.textContent = product.description || "";
       productBuyButton.hidden = !product.seller_id || product.status !== "available";
+      productBitcoinButton.hidden = !product.seller_id || product.status !== "available";
+      productBitcoinButton.disabled = !BITCOIN_CHECKOUT_ENABLED;
+      productBitcoinButton.toggleAttribute("data-unavailable", !BITCOIN_CHECKOUT_ENABLED);
+      productBitcoinButton.textContent = BITCOIN_CHECKOUT_ENABLED ? "Pay with BTC" : "Bitcoin checkout coming soon";
+      productPaymentStatus.textContent = "";
       productRatingSummary.textContent = product.seller_id ? "Loading ratings..." : "Sample listing";
       productReviewStatus.textContent = "";
       productReviewForm.hidden = true;
@@ -841,9 +863,12 @@
 
     async function loadOrders(user) {
       if (!supabaseClient || !user) return;
+      const paymentFields = BITCOIN_ORDER_FIELDS_AVAILABLE
+        ? "payment_method,payment_status,payment_amount_usd,payment_checkout_url,payout_status,"
+        : "";
       const { data, error } = await supabaseClient
         .from("orders")
-        .select("id,status,buyer_id,seller_id,listing_id,created_at,listings(title,price),seller_reviews(id)")
+        .select(`id,status,buyer_id,seller_id,listing_id,created_at,${paymentFields}listings(title,price),seller_reviews(id)`)
         .or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`)
         .order("created_at", { ascending: false });
       if (error) {
@@ -858,23 +883,62 @@
         const title = escapeHTML(order.listings?.title || "Souq item");
         const role = order.buyer_id === user.id ? "Buyer" : "Seller";
         const status = escapeHTML(order.status);
+        const isBitcoinOrder = order.payment_method === "bitcoin";
+        const orderAmount = isBitcoinOrder ? order.payment_amount_usd : order.listings?.price;
         let action = "";
         if (role === "Seller" && order.status === "pending") {
-          action = `<button type="button" data-complete-order="${escapeHTML(order.id)}">Mark sale complete</button>
-            <button type="button" data-cancel-order="${escapeHTML(order.id)}">Decline request</button>`;
+          action = isBitcoinOrder
+            ? order.payment_status === "paid"
+              ? `<button type="button" data-complete-order="${escapeHTML(order.id)}">Mark sale complete</button>`
+              : ""
+            : `<button type="button" data-complete-order="${escapeHTML(order.id)}">Mark sale complete</button>
+              <button type="button" data-cancel-order="${escapeHTML(order.id)}">Decline request</button>`;
         } else if (role === "Buyer" && order.status === "completed" && !order.seller_reviews?.length) {
           action = `<button type="button" data-rate-order="${escapeHTML(order.id)}" data-seller="${escapeHTML(order.seller_id)}">Rate seller</button>`;
         }
+        const paymentInfo = isBitcoinOrder
+          ? `<p>Bitcoin payment · ${escapeHTML(bitcoinPaymentStatusLabel(order.payment_status))}</p>`
+          : "";
+        const payoutInfo = role === "Seller" && isBitcoinOrder && (order.payment_status === "paid" || order.payout_status === "paid")
+          ? `<p>Souq payout · ${order.payout_status === "paid" ? "Paid" : "Pending manual payout"}</p>`
+          : "";
+        const refundInfo = role === "Buyer" && isBitcoinOrder && order.payment_status === "refund_due"
+          ? "<p>This payment needs a refund. Please contact the Souq administrator.</p>"
+          : "";
+        const checkoutAction = role === "Buyer" && isBitcoinOrder
+          && ["awaiting_payment", "processing"].includes(order.payment_status)
+          && order.payment_checkout_url
+          ? `<a class="order-product-link" href="${escapeHTML(order.payment_checkout_url)}" target="_blank" rel="noopener noreferrer">Continue Bitcoin checkout ↗</a>`
+          : "";
         const productAction = role === "Buyer" && order.listing_id
           ? `<a class="order-product-link" href="${escapeHTML(productPageUrl(order.listing_id))}" target="_blank" rel="noopener noreferrer">${order.status === "completed" ? "View product / rate" : "View product"} ↗</a>`
           : "";
         return `<article class="order-item">
           <strong>${title}</strong>
-          <p>${role} · ${status}${order.listings?.price ? ` · $${Number(order.listings.price).toFixed(2)}` : ""}</p>
+          <p>${role} · ${status}${orderAmount != null ? ` · $${Number(orderAmount).toFixed(2)}` : ""}</p>
+          ${paymentInfo}
+          ${payoutInfo}
+          ${refundInfo}
           ${action}
+          ${checkoutAction}
           ${productAction}
         </article>`;
       }).join("");
+    }
+
+    function bitcoinPaymentStatusLabel(status) {
+      const labels = {
+        creating: "Preparing invoice",
+        awaiting_payment: "Awaiting Bitcoin payment",
+        processing: "Payment processing",
+        paid: "Paid",
+        expired: "Invoice expired",
+        failed: "Checkout failed",
+        needs_review: "Needs Souq review",
+        refund_due: "Refund required",
+        refunded: "Refunded"
+      };
+      return labels[status] || "Payment status unavailable";
     }
 
     async function requestPurchase(listingId) {
@@ -908,6 +972,95 @@
       }
       showToast("Purchase request sent. The seller can find it under My orders.");
       loadOrders(signedInUser);
+    }
+
+    async function startBitcoinCheckout(listingId, button, statusTarget) {
+      if (!BITCOIN_CHECKOUT_ENABLED) {
+        const message = "Bitcoin checkout is coming soon.";
+        if (statusTarget) statusTarget.textContent = message;
+        else showToast(message);
+        return;
+      }
+      if (!signedInUser) {
+        accountDialog.showModal();
+        accountNote.textContent = "Sign in and complete authenticator verification to pay with Bitcoin.";
+        return;
+      }
+      if (!supabaseClient) {
+        showToast("Bitcoin checkout is unavailable because the Souq service is not configured.");
+        return;
+      }
+      const listing = liveListings.find(item => item.id === listingId)
+        || (currentProduct?.id === listingId ? currentProduct : null);
+      if (!listing?.seller_id) {
+        const message = "Bitcoin checkout is only available for live listings.";
+        if (statusTarget) statusTarget.textContent = message;
+        else showToast(message);
+        return;
+      }
+      if (listing.seller_id === signedInUser.id) {
+        const message = "You can't buy your own listing.";
+        if (statusTarget) statusTarget.textContent = message;
+        else showToast(message);
+        return;
+      }
+      if (listing.status && listing.status !== "available") {
+        const message = "This item is no longer available.";
+        if (statusTarget) statusTarget.textContent = message;
+        else showToast(message);
+        return;
+      }
+
+      const buttonLabel = button.textContent;
+      button.disabled = true;
+      button.textContent = "Preparing checkout...";
+      if (statusTarget) statusTarget.textContent = "Creating a Bitcoin invoice...";
+      try {
+        const { data: sessionData, error: sessionError } = await supabaseClient.auth.getSession();
+        if (sessionError) throw sessionError;
+        const accessToken = sessionData.session?.access_token;
+        if (!accessToken) throw new Error("Your session expired. Sign in again to continue.");
+
+        const response = await fetch(`${SUPABASE_URL}/functions/v1/create-btcpay-invoice`, {
+          method: "POST",
+          headers: {
+            "apikey": SUPABASE_PUBLISHABLE_KEY,
+            "Authorization": `Bearer ${accessToken}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ listingId })
+        });
+        let result;
+        try {
+          result = await response.json();
+        } catch {
+          throw new Error(`Bitcoin checkout returned an invalid response (HTTP ${response.status}).`);
+        }
+        if (!response.ok) {
+          throw new Error(result?.error || `Bitcoin checkout failed (HTTP ${response.status}).`);
+        }
+        if (typeof result?.checkoutUrl !== "string") {
+          throw new Error("Bitcoin checkout did not return a payment link.");
+        }
+        let checkoutUrl;
+        try {
+          checkoutUrl = new URL(result.checkoutUrl);
+        } catch {
+          throw new Error("Bitcoin checkout returned an invalid payment link.");
+        }
+        if (checkoutUrl.protocol !== "https:") {
+          throw new Error("Bitcoin checkout must use a secure HTTPS link.");
+        }
+        if (statusTarget) statusTarget.textContent = "Redirecting to BTCPay Server...";
+        window.location.assign(checkoutUrl.href);
+      } catch (error) {
+        const message = error?.message || "Couldn't start Bitcoin checkout. Please try again.";
+        if (statusTarget) statusTarget.textContent = message;
+        else showToast(message);
+      } finally {
+        button.disabled = false;
+        button.textContent = buttonLabel;
+      }
     }
 
     async function publishListing(form) {
@@ -1527,6 +1680,11 @@
         requestPurchase(buyButton.dataset.buy);
         return;
       }
+      const bitcoinButton = event.target.closest("[data-bitcoin-buy]");
+      if (bitcoinButton) {
+        startBitcoinCheckout(bitcoinButton.dataset.bitcoinBuy, bitcoinButton, null);
+        return;
+      }
       const favorite = event.target.closest("[data-favorite]");
       if (!favorite) return;
       const saved = favorite.getAttribute("aria-pressed") !== "true";
@@ -1537,6 +1695,9 @@
     });
     productBuyButton.addEventListener("click", () => {
       if (currentProduct?.id) requestPurchase(currentProduct.id);
+    });
+    productBitcoinButton.addEventListener("click", () => {
+      if (currentProduct?.id) startBitcoinCheckout(currentProduct.id, productBitcoinButton, productPaymentStatus);
     });
     productReviewSignIn.addEventListener("click", () => {
       setAccountMode("sign-in");
