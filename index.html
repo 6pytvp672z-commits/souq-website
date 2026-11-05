@@ -762,6 +762,16 @@
       accountUser.hidden = !signedIn;
       mfaLoginForm.hidden = true;
       accountButton.textContent = signedIn ? "My account" : "Sign in";
+      if (!signedIn && mfaLoginChallenge) {
+        accountTabs.hidden = true;
+        forgotPasswordButton.hidden = true;
+        signInForm.hidden = true;
+        createAccountForm.hidden = true;
+        mfaLoginForm.hidden = false;
+        accountTitle.textContent = "Verify your sign-in";
+        accountDescription.textContent = "Enter the current code from your authenticator app.";
+        return;
+      }
       if (signedIn) {
         accountTitle.textContent = "Your Souq account";
         accountDescription.textContent = "You are signed in securely.";
@@ -792,13 +802,16 @@
             return;
           }
 
-          const { data: assurance, error: assuranceError } = await supabaseClient.auth.mfa.getAuthenticatorAssuranceLevel();
+          const [{ data: assurance, error: assuranceError }, { data: factors, error: factorsError }] = await Promise.all([
+            supabaseClient.auth.mfa.getAuthenticatorAssuranceLevel(),
+            supabaseClient.auth.mfa.listFactors()
+          ]);
           if (assuranceError) throw assuranceError;
-          if (assurance.nextLevel === "aal2" && assurance.currentLevel !== "aal2") {
-            const { data: factors, error: factorsError } = await supabaseClient.auth.mfa.listFactors();
-            if (factorsError) throw factorsError;
-            const factor = factors.totp.find(item => item.status === "verified");
-            if (!factor) throw new Error("An authenticator is required, but no verified factor is available.");
+          if (factorsError) throw factorsError;
+          const factor = factors.totp.find(item => item.status === "verified");
+          const requiresTotp = assurance.currentLevel !== "aal2" && (Boolean(factor) || assurance.nextLevel === "aal2");
+          if (requiresTotp) {
+            if (!factor) throw new Error("This account requires an authenticator app, but no verified authenticator is available.");
             if (!mfaLoginChallenge || mfaLoginChallenge.factorId !== factor.id) {
               const { data: challenge, error: challengeError } = await supabaseClient.auth.mfa.challenge({ factorId: factor.id });
               if (challengeError) throw challengeError;
@@ -813,7 +826,7 @@
             mfaLoginForm.elements.code.focus();
             accountTitle.textContent = "Verify your sign-in";
             accountDescription.textContent = "Enter the current code from your authenticator app.";
-            accountNote.textContent = "Your account needs an authenticator code to finish signing in.";
+            accountNote.textContent = "Password accepted. Enter your authenticator app code to finish signing in.";
             if (!accountDialog.open) accountDialog.showModal();
             return;
           }
